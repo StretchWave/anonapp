@@ -10,9 +10,5 @@ Future<void> main() async {
   // Initialise Supabase SDK (reads env from --dart-define / .env).
   await SupabaseService.initialize();
 
-  runApp(
-    const ProviderScope(
-      child: AnonApp(),
-    ),
-  );
+  runApp(const ProviderScope(child: AnonApp()));
 }
