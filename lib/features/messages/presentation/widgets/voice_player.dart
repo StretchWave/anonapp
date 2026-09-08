@@ -178,7 +178,7 @@ class _VoicePlayerState extends State<VoicePlayer> {
                           fontSize: 11,
                           color: widget.isMine
                               ? Colors.white70
-                              : Colors.black54,
+                              : AppColors.textSecondaryDark,
                           fontFamily: 'monospace',
                         ),
                       ),
@@ -189,7 +189,7 @@ class _VoicePlayerState extends State<VoicePlayer> {
                             size: 12,
                             color: widget.isMine
                                 ? Colors.white70
-                                : Colors.black45,
+                                : AppColors.textMutedDark,
                           ),
                           const SizedBox(width: 2),
                           Text(
@@ -198,7 +198,7 @@ class _VoicePlayerState extends State<VoicePlayer> {
                               fontSize: 10,
                               color: widget.isMine
                                   ? Colors.white70
-                                  : Colors.black45,
+                                  : AppColors.textMutedDark,
                             ),
                           ),
                         ],

@@ -15,22 +15,28 @@ class ImagePreviewDialog extends StatefulWidget {
     super.key,
     required this.imageBytes,
     required this.onSend,
+    this.isViewOnceDefault = false,
   });
 
   final Uint8List imageBytes;
   final OnSendImageCallback onSend;
+  final bool isViewOnceDefault;
 
   static Future<void> show(
     BuildContext context, {
     required Uint8List imageBytes,
     required OnSendImageCallback onSend,
+    bool isViewOnceDefault = false,
   }) async {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (ctx) =>
-          ImagePreviewDialog(imageBytes: imageBytes, onSend: onSend),
+      builder: (ctx) => ImagePreviewDialog(
+        imageBytes: imageBytes,
+        onSend: onSend,
+        isViewOnceDefault: isViewOnceDefault,
+      ),
     );
   }
 
@@ -40,7 +46,13 @@ class ImagePreviewDialog extends StatefulWidget {
 
 class _ImagePreviewDialogState extends State<ImagePreviewDialog> {
   final _captionController = TextEditingController();
-  bool _isViewOnce = false;
+  late bool _isViewOnce;
+
+  @override
+  void initState() {
+    super.initState();
+    _isViewOnce = widget.isViewOnceDefault;
+  }
 
   @override
   void dispose() {

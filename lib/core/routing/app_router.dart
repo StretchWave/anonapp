@@ -6,6 +6,7 @@ import '../../features/auth/presentation/providers/auth_provider.dart';
 import '../../features/auth/presentation/screens/login_screen.dart';
 import '../../features/auth/presentation/screens/register_screen.dart';
 import '../../features/auth/presentation/screens/splash_screen.dart';
+import '../../features/auth/presentation/screens/welcome_screen.dart';
 import '../../features/chat/presentation/screens/chat_screen.dart';
 import '../../features/conversations/presentation/screens/main_screen.dart';
 import '../../features/settings/presentation/screens/settings_screen.dart';
@@ -14,6 +15,7 @@ import '../../features/users/presentation/screens/user_search_screen.dart';
 /// Named route paths.
 abstract final class AppRoutes {
   static const String splash = '/';
+  static const String welcome = '/welcome';
   static const String login = '/login';
   static const String register = '/register';
   static const String main = '/main';
@@ -32,7 +34,7 @@ final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     navigatorKey: rootNavigatorKey,
     initialLocation: AppRoutes.splash,
-    debugLogDiagnostics: true,
+    debugLogDiagnostics: false,
     redirect: (BuildContext context, GoRouterState state) {
       final isLoading = authState.isLoading;
       final isAuthenticated = authState.valueOrNull ?? false;
@@ -45,18 +47,22 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       // Once auth is resolved, move away from splash screen.
       if (currentPath == AppRoutes.splash) {
-        return isAuthenticated ? AppRoutes.main : AppRoutes.login;
+        return isAuthenticated ? AppRoutes.main : AppRoutes.welcome;
       }
 
-      final authRoutes = {AppRoutes.login, AppRoutes.register};
+      final authRoutes = {
+        AppRoutes.welcome,
+        AppRoutes.login,
+        AppRoutes.register,
+      };
       final isAuthRoute = authRoutes.contains(currentPath);
 
-      // If not authenticated and trying to access a protected route, redirect to login.
+      // If not authenticated and trying to access a protected route, redirect to welcome.
       if (!isAuthenticated && !isAuthRoute) {
-        return AppRoutes.login;
+        return AppRoutes.welcome;
       }
 
-      // If authenticated and trying to access login/register, redirect to main.
+      // If authenticated and trying to access auth pages, redirect to main.
       if (isAuthenticated && isAuthRoute) {
         return AppRoutes.main;
       }
@@ -68,6 +74,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.splash,
         builder: (context, state) => const SplashScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.welcome,
+        builder: (context, state) => const WelcomeScreen(),
       ),
       GoRoute(
         path: AppRoutes.login,

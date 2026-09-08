@@ -11,10 +11,11 @@ import 'package:record/record.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/extensions.dart';
 import '../../../../core/utils/file_cleanup.dart';
+import 'attachment_sheet.dart';
 import 'image_preview_dialog.dart';
 
-/// Text and rich media input bar supporting Enter-to-send, voice recording,
-/// normal images, and view-once images.
+/// Modern chat input bar supporting multiline text (Enter to send),
+/// rich attachment sheet (gallery, camera, view-once), and voice recording.
 class ChatInputBar extends StatefulWidget {
   const ChatInputBar({
     super.key,
@@ -33,21 +34,29 @@ class ChatInputBar extends StatefulWidget {
   State<ChatInputBar> createState() => _ChatInputBarState();
 }
 
-class _ChatInputBarState extends State<ChatInputBar> {
-  final _controller = TextEditingController();
-  final _focusNode = FocusNode();
-  final _imagePicker = ImagePicker();
-  final _audioRecorder = AudioRecorder();
+class _ChatInputBarState extends State<ChatInputBar>
+    with SingleTickerProviderStateMixin {
+  final TextEditingController _controller = TextEditingController();
+  final FocusNode _focusNode = FocusNode();
+  final ImagePicker _imagePicker = ImagePicker();
+  final AudioRecorder _audioRecorder = AudioRecorder();
 
-  bool _canSend = false;
   bool _isRecording = false;
   int _recordSeconds = 0;
   Timer? _recordTimer;
   DateTime? _recordStartTime;
 
+  bool _canSend = false;
+  late AnimationController _pulseController;
+
   @override
   void initState() {
     super.initState();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    );
+
     _controller.addListener(() {
       final canSend = _controller.text.trim().isNotEmpty;
       if (canSend != _canSend) {
@@ -59,6 +68,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
   @override
   void dispose() {
     _recordTimer?.cancel();
+    _pulseController.dispose();
     _audioRecorder.dispose();
     _controller.dispose();
     _focusNode.dispose();
@@ -82,10 +92,35 @@ class _ChatInputBarState extends State<ChatInputBar> {
     return KeyEventResult.ignored;
   }
 
-  Future<void> _pickAndPreviewImage() async {
+  void _openAttachmentMenu() {
+    AttachmentSheet.show(
+      context,
+      onSelect: (type) {
+        switch (type) {
+          case AttachmentType.gallery:
+            _pickImage(ImageSource.gallery, defaultViewOnce: false);
+            break;
+          case AttachmentType.camera:
+            _pickImage(ImageSource.camera, defaultViewOnce: false);
+            break;
+          case AttachmentType.viewOnce:
+            _pickImage(ImageSource.gallery, defaultViewOnce: true);
+            break;
+          case AttachmentType.voice:
+            _startRecording();
+            break;
+        }
+      },
+    );
+  }
+
+  Future<void> _pickImage(
+    ImageSource source, {
+    required bool defaultViewOnce,
+  }) async {
     try {
       final xFile = await _imagePicker.pickImage(
-        source: ImageSource.gallery,
+        source: source,
         imageQuality: 80,
       );
       if (xFile == null || !mounted) return;
@@ -96,6 +131,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
       await ImagePreviewDialog.show(
         context,
         imageBytes: bytes,
+        isViewOnceDefault: defaultViewOnce,
         onSend: (base64Img, caption, isViewOnce) {
           widget.onSendImage?.call(base64Img, caption, isViewOnce);
         },
@@ -103,11 +139,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
     } catch (e) {
       debugPrint('[ChatInputBar] Error picking image: $e');
       if (mounted) {
-        context.showSnackBar(
-          'Could not open image picker: $e\n'
-          'Note: If packages were newly installed, please stop and restart `flutter run`.',
-          isError: true,
-        );
+        context.showSnackBar('Could not access image: $e', isError: true);
       }
     }
   }
@@ -118,14 +150,13 @@ class _ChatInputBarState extends State<ChatInputBar> {
       if (!hasPermission) {
         if (mounted) {
           context.showSnackBar(
-            'Microphone permission required. Please allow access.',
+            'Microphone permission required for voice notes.',
             isError: true,
           );
         }
         return;
       }
 
-      // Determine the best supported audio encoder for the platform
       AudioEncoder encoder = AudioEncoder.aacLc;
       if (kIsWeb) {
         final isOpus = await _audioRecorder.isEncoderSupported(
@@ -139,7 +170,6 @@ class _ChatInputBarState extends State<ChatInputBar> {
         encoder = isAac ? AudioEncoder.aacLc : AudioEncoder.opus;
       }
 
-      // Generate temp path for native platforms; web uses browser in-memory blobs
       String targetPath = '';
       if (!kIsWeb) {
         final tempDir = await getTemporaryDirectory();
@@ -151,6 +181,8 @@ class _ChatInputBarState extends State<ChatInputBar> {
       final config = RecordConfig(encoder: encoder);
       await _audioRecorder.start(config, path: targetPath);
       _recordStartTime = DateTime.now();
+
+      unawaited(_pulseController.repeat(reverse: true));
 
       if (mounted) {
         setState(() {
@@ -168,11 +200,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
     } catch (e) {
       debugPrint('[ChatInputBar] Error starting recording: $e');
       if (mounted) {
-        context.showSnackBar(
-          'Could not start recording: $e\n'
-          'Note: If packages were newly installed, please stop and restart `flutter run`.',
-          isError: true,
-        );
+        context.showSnackBar('Could not start recording: $e', isError: true);
       }
     }
   }
@@ -180,6 +208,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
   Future<void> _cancelRecording() async {
     try {
       _recordTimer?.cancel();
+      _pulseController.stop();
       final path = await _audioRecorder.stop();
       await deleteTempFile(path);
     } catch (_) {}
@@ -194,6 +223,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
   Future<void> _stopAndSendRecording() async {
     try {
       _recordTimer?.cancel();
+      _pulseController.stop();
       final path = await _audioRecorder.stop();
       final durationMs = _recordStartTime != null
           ? DateTime.now().difference(_recordStartTime!).inMilliseconds
@@ -209,7 +239,6 @@ class _ChatInputBarState extends State<ChatInputBar> {
       if (path != null && path.isNotEmpty) {
         final xFile = XFile(path);
         final bytes = await xFile.readAsBytes();
-        // Immediately clean up temporary unencrypted audio file from disk
         await deleteTempFile(path);
         final base64Audio = base64Encode(bytes);
         widget.onSendVoice?.call(base64Audio, durationMs);
@@ -238,29 +267,26 @@ class _ChatInputBarState extends State<ChatInputBar> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final bottomInset = MediaQuery.of(context).padding.bottom;
 
     return Container(
       padding: EdgeInsets.only(
-        left: 8,
+        left: 10,
         right: 12,
         top: 8,
-        bottom: MediaQuery.of(context).padding.bottom + 8,
+        bottom: bottomInset > 0 ? bottomInset + 4 : 10,
       ),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
+      decoration: const BoxDecoration(
+        color: AppColors.surfaceDark,
         border: Border(
-          top: BorderSide(
-            color: theme.colorScheme.outlineVariant.withAlpha(60),
-            width: 0.5,
-          ),
+          top: BorderSide(color: AppColors.surfaceBorder, width: 0.8),
         ),
       ),
-      child: _isRecording ? _buildRecordingBar(theme) : _buildInputBar(theme),
+      child: _isRecording ? _buildRecordingBar() : _buildInputBar(),
     );
   }
 
-  Widget _buildRecordingBar(ThemeData theme) {
+  Widget _buildRecordingBar() {
     return Row(
       children: [
         IconButton(
@@ -271,13 +297,24 @@ class _ChatInputBarState extends State<ChatInputBar> {
           tooltip: 'Discard',
           onPressed: _cancelRecording,
         ),
-        const SizedBox(width: 8),
-        Container(
-          width: 10,
-          height: 10,
-          decoration: const BoxDecoration(
-            shape: BoxShape.circle,
-            color: AppColors.error,
+        const SizedBox(width: 6),
+        AnimatedBuilder(
+          animation: _pulseController,
+          builder: (context, child) => Container(
+            width: 10,
+            height: 10,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: AppColors.error.withValues(
+                alpha: 0.4 + (_pulseController.value * 0.6),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.error.withValues(alpha: 0.5),
+                  blurRadius: 6 * _pulseController.value,
+                ),
+              ],
+            ),
           ),
         ),
         const SizedBox(width: 8),
@@ -286,44 +323,54 @@ class _ChatInputBarState extends State<ChatInputBar> {
           style: const TextStyle(
             fontWeight: FontWeight.bold,
             fontFamily: 'monospace',
-            fontSize: 16,
+            fontSize: 15,
+            color: AppColors.textPrimaryDark,
           ),
         ),
         const Spacer(),
         const Text(
           'Recording anonymous audio...',
-          style: TextStyle(fontSize: 12, color: Colors.grey),
+          style: TextStyle(fontSize: 12, color: AppColors.textMutedDark),
         ),
         const Spacer(),
-        FloatingActionButton.small(
-          onPressed: _stopAndSendRecording,
-          backgroundColor: AppColors.primary,
-          foregroundColor: Colors.white,
-          child: const Icon(Icons.arrow_upward_rounded),
+        Container(
+          width: 40,
+          height: 40,
+          decoration: const BoxDecoration(
+            gradient: AppColors.primaryGradient,
+            shape: BoxShape.circle,
+            boxShadow: AppColors.primaryGlow,
+          ),
+          child: IconButton(
+            icon: const Icon(Icons.arrow_upward_rounded, size: 20),
+            color: Colors.white,
+            onPressed: _stopAndSendRecording,
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildInputBar(ThemeData theme) {
+  Widget _buildInputBar() {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        // Image attachment button
+        // Attachment Plus Button
         IconButton(
-          icon: const Icon(Icons.add_photo_alternate_outlined),
-          tooltip: 'Send photo',
-          color: theme.colorScheme.onSurface.withAlpha(180),
-          onPressed: widget.enabled ? _pickAndPreviewImage : null,
+          icon: const Icon(Icons.add_circle_outline_rounded),
+          tooltip: 'Share media',
+          color: AppColors.primaryLight,
+          onPressed: widget.enabled ? _openAttachmentMenu : null,
         ),
 
-        // Text input field with Enter-to-send support
+        // Text input field with Enter-to-send
         Expanded(
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 14),
             decoration: BoxDecoration(
-              color: theme.colorScheme.surfaceContainerHighest.withAlpha(128),
-              borderRadius: BorderRadius.circular(24),
+              color: AppColors.surfaceVariantDark,
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: AppColors.surfaceBorder, width: 1),
             ),
             child: Focus(
               onKeyEvent: _handleKeyEvent,
@@ -335,9 +382,19 @@ class _ChatInputBarState extends State<ChatInputBar> {
                 maxLines: 5,
                 minLines: 1,
                 textInputAction: TextInputAction.newline,
+                style: const TextStyle(
+                  fontSize: 15,
+                  color: AppColors.textPrimaryDark,
+                ),
                 decoration: const InputDecoration(
                   hintText: 'Type an anonymous message...',
+                  hintStyle: TextStyle(
+                    color: AppColors.textMutedDark,
+                    fontSize: 14,
+                  ),
                   border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
                   contentPadding: EdgeInsets.symmetric(vertical: 10),
                   isDense: true,
                 ),
@@ -347,29 +404,50 @@ class _ChatInputBarState extends State<ChatInputBar> {
         ),
         const SizedBox(width: 8),
 
-        // Send button or Microphone button
-        if (_canSend)
-          Container(
-            decoration: const BoxDecoration(
-              shape: BoxShape.circle,
-              color: AppColors.primary,
-            ),
-            child: IconButton(
-              icon: const Icon(Icons.arrow_upward_rounded),
-              color: Colors.white,
-              iconSize: 20,
-              tooltip: 'Send message (Enter)',
-              onPressed: widget.enabled ? _handleSend : null,
-            ),
-          )
-        else
-          IconButton(
-            icon: const Icon(Icons.mic_none_rounded),
-            color: AppColors.primary,
-            iconSize: 26,
-            tooltip: 'Record voice note',
-            onPressed: widget.enabled ? _startRecording : null,
-          ),
+        // Morphing Action button (Mic <-> Send Arrow)
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 200),
+          transitionBuilder: (child, anim) =>
+              ScaleTransition(scale: anim, child: child),
+          child: _canSend
+              ? Container(
+                  key: const ValueKey('send_btn'),
+                  width: 42,
+                  height: 42,
+                  decoration: const BoxDecoration(
+                    gradient: AppColors.primaryGradient,
+                    shape: BoxShape.circle,
+                    boxShadow: AppColors.primaryGlow,
+                  ),
+                  child: IconButton(
+                    icon: const Icon(Icons.arrow_upward_rounded),
+                    color: Colors.white,
+                    iconSize: 20,
+                    tooltip: 'Send message (Enter)',
+                    onPressed: widget.enabled ? _handleSend : null,
+                  ),
+                )
+              : Container(
+                  key: const ValueKey('mic_btn'),
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceVariantDark,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: AppColors.surfaceBorder,
+                      width: 1,
+                    ),
+                  ),
+                  child: IconButton(
+                    icon: const Icon(Icons.mic_rounded),
+                    color: AppColors.primaryLight,
+                    iconSize: 20,
+                    tooltip: 'Record voice note',
+                    onPressed: widget.enabled ? _startRecording : null,
+                  ),
+                ),
+        ),
       ],
     );
   }

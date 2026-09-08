@@ -8,7 +8,7 @@ import '../../../messages/presentation/providers/message_provider.dart';
 import '../../../messages/presentation/widgets/chat_input_bar.dart';
 import '../../../messages/presentation/widgets/message_bubble.dart';
 
-/// Screen for chatting in a 1:1 conversation in real time.
+/// Screen for chatting in a 1:1 conversation in real time with E2EE.
 class ChatScreen extends ConsumerWidget {
   const ChatScreen({
     super.key,
@@ -21,7 +21,6 @@ class ChatScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final theme = context.theme;
     final currentUserId = SupabaseService.client.auth.currentUser?.id ?? '';
     final messagesAsync = ref.watch(
       conversationMessagesProvider(conversationId),
@@ -33,23 +32,37 @@ class ChatScreen extends ConsumerWidget {
     final displayTitle = otherUsername != null
         ? '@$otherUsername'
         : 'Anonymous Chat';
+    final initial = otherUsername != null && otherUsername!.isNotEmpty
+        ? otherUsername![0].toUpperCase()
+        : '?';
 
     return Scaffold(
       appBar: AppBar(
         titleSpacing: 0,
         title: Row(
           children: [
-            CircleAvatar(
-              radius: 18,
-              backgroundColor: AppColors.primary.withAlpha(38),
-              child: Text(
-                otherUsername != null && otherUsername!.isNotEmpty
-                    ? otherUsername![0].toUpperCase()
-                    : '?',
-                style: const TextStyle(
-                  color: AppColors.primary,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
+            // Avatar with gradient border
+            Container(
+              width: 38,
+              height: 38,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: AppColors.accentGradient,
+              ),
+              padding: const EdgeInsets.all(2),
+              child: Container(
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppColors.cardDark,
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  initial,
+                  style: const TextStyle(
+                    color: AppColors.primaryLight,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
                 ),
               ),
             ),
@@ -60,27 +73,31 @@ class ChatScreen extends ConsumerWidget {
                 children: [
                   Text(
                     displayTitle,
-                    style: theme.textTheme.titleMedium?.copyWith(
+                    style: const TextStyle(
+                      fontSize: 15,
                       fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimaryDark,
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
+                  const SizedBox(height: 2),
                   Row(
                     children: [
                       Container(
-                        width: 7,
-                        height: 7,
+                        width: 6,
+                        height: 6,
                         decoration: const BoxDecoration(
-                          color: AppColors.accent,
+                          color: AppColors.secondary,
                           shape: BoxShape.circle,
                         ),
                       ),
                       const SizedBox(width: 5),
-                      Text(
-                        'End-to-End Pseudonymous',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurface.withAlpha(128),
+                      const Text(
+                        'End-to-End Encrypted',
+                        style: TextStyle(
                           fontSize: 11,
+                          color: AppColors.secondary,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ],
@@ -92,8 +109,16 @@ class ChatScreen extends ConsumerWidget {
         ),
         actions: [
           PopupMenuButton<String>(
-            icon: const Icon(Icons.more_vert_rounded),
+            icon: const Icon(
+              Icons.more_vert_rounded,
+              color: AppColors.textSecondaryDark,
+            ),
             tooltip: 'Chat Options',
+            color: AppColors.surfaceDark,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: const BorderSide(color: AppColors.surfaceBorder, width: 1),
+            ),
             onSelected: (value) {
               if (value == 'clear_chat') {
                 _confirmClearChat(context, messagesNotifier);
@@ -109,10 +134,13 @@ class ChatScreen extends ConsumerWidget {
                     Icon(
                       Icons.cleaning_services_rounded,
                       color: AppColors.error,
-                      size: 20,
+                      size: 18,
                     ),
-                    SizedBox(width: 10),
-                    Text('Clear Chat'),
+                    SizedBox(width: 12),
+                    Text(
+                      'Clear Chat',
+                      style: TextStyle(color: AppColors.error, fontSize: 13),
+                    ),
                   ],
                 ),
               ),
@@ -120,14 +148,25 @@ class ChatScreen extends ConsumerWidget {
                 value: 'security_info',
                 child: Row(
                   children: [
-                    Icon(Icons.shield_outlined, size: 20),
-                    SizedBox(width: 10),
-                    Text('Anonymity Info'),
+                    Icon(
+                      Icons.shield_outlined,
+                      size: 18,
+                      color: AppColors.primaryLight,
+                    ),
+                    SizedBox(width: 12),
+                    Text(
+                      'Anonymity Info',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: AppColors.textPrimaryDark,
+                      ),
+                    ),
                   ],
                 ),
               ),
             ],
           ),
+          const SizedBox(width: 6),
         ],
       ),
       body: Column(
@@ -135,7 +174,13 @@ class ChatScreen extends ConsumerWidget {
           // Messages list
           Expanded(
             child: messagesAsync.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
+              loading: () => const Center(
+                child: SizedBox(
+                  width: 28,
+                  height: 28,
+                  child: CircularProgressIndicator(strokeWidth: 2.5),
+                ),
+              ),
               error: (error, _) => Center(
                 child: Padding(
                   padding: const EdgeInsets.all(24),
@@ -145,18 +190,21 @@ class ChatScreen extends ConsumerWidget {
                       const Icon(
                         Icons.error_outline_rounded,
                         color: AppColors.error,
-                        size: 36,
+                        size: 40,
                       ),
                       const SizedBox(height: 12),
-                      Text(
+                      const Text(
                         'Failed to load messages',
-                        style: theme.textTheme.titleSmall,
+                        style: TextStyle(fontWeight: FontWeight.bold),
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 6),
                       Text(
                         error.toString(),
                         textAlign: TextAlign.center,
-                        style: theme.textTheme.bodySmall,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textMutedDark,
+                        ),
                       ),
                     ],
                   ),
@@ -170,24 +218,35 @@ class ChatScreen extends ConsumerWidget {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(
-                            Icons.waving_hand_rounded,
-                            size: 44,
-                            color: theme.colorScheme.primary.withAlpha(128),
+                          Container(
+                            padding: const EdgeInsets.all(20),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: AppColors.primary.withAlpha(22),
+                            ),
+                            child: const Icon(
+                              Icons.lock_clock_rounded,
+                              size: 42,
+                              color: AppColors.primaryLight,
+                            ),
                           ),
-                          const SizedBox(height: 16),
-                          Text(
+                          const SizedBox(height: 18),
+                          const Text(
                             'Say hello anonymously!',
-                            style: theme.textTheme.titleMedium?.copyWith(
+                            style: TextStyle(
+                              fontSize: 16,
                               fontWeight: FontWeight.bold,
+                              color: AppColors.textPrimaryDark,
                             ),
                           ),
                           const SizedBox(height: 6),
-                          Text(
-                            'No personal info is shared. Messages are synced in real time.',
+                          const Text(
+                            'Messages are selectively encrypted with AES-256-GCM.\nNo real identity is exposed.',
                             textAlign: TextAlign.center,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurface.withAlpha(153),
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: AppColors.textSecondaryDark,
+                              height: 1.4,
                             ),
                           ),
                         ],
@@ -198,7 +257,7 @@ class ChatScreen extends ConsumerWidget {
 
                 return ListView.builder(
                   reverse: true,
-                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  padding: const EdgeInsets.symmetric(vertical: 10),
                   itemCount: messages.length,
                   itemBuilder: (context, index) {
                     final message = messages[index];
@@ -216,7 +275,7 @@ class ChatScreen extends ConsumerWidget {
             ),
           ),
 
-          // Input bar supporting text (Enter to send), images, view-once, and voice
+          // Input bar
           ChatInputBar(
             onSend: (text) => messagesNotifier.sendMessage(text),
             onSendImage: (base64Img, caption, isViewOnce) {
@@ -244,14 +303,23 @@ class ChatScreen extends ConsumerWidget {
       builder: (ctx) => AlertDialog(
         title: const Row(
           children: [
-            Icon(Icons.shield_outlined, color: AppColors.accent),
+            Icon(Icons.shield_rounded, color: AppColors.secondary, size: 22),
             SizedBox(width: 10),
-            Text('Anonymous Chat'),
+            Text(
+              'Anonymous Chat',
+              style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+            ),
           ],
         ),
         content: const Text(
-          'In AnonApp, you are only known by your username and contact code. '
-          'Your login password, email, phone number, or real identity are never exposed.',
+          'In AnonApp, you are strictly pseudonymous. '
+          'Text messages are end-to-end encrypted with AES-256-GCM cipher.\n\n'
+          'Your passwords, device details, and personal data are never exposed.',
+          style: TextStyle(
+            fontSize: 13.5,
+            height: 1.45,
+            color: AppColors.textSecondaryDark,
+          ),
         ),
         actions: [
           TextButton(
@@ -269,13 +337,25 @@ class ChatScreen extends ConsumerWidget {
       builder: (ctx) => AlertDialog(
         title: const Row(
           children: [
-            Icon(Icons.cleaning_services_rounded, color: AppColors.error),
+            Icon(
+              Icons.cleaning_services_rounded,
+              color: AppColors.error,
+              size: 22,
+            ),
             SizedBox(width: 10),
-            Text('Clear Chat?'),
+            Text(
+              'Clear Chat?',
+              style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+            ),
           ],
         ),
         content: const Text(
-          'All messages in this conversation will be cleared from both participants\' screens.\n\n',
+          'All messages in this conversation will be cleared from both participants\' screens.\n\nThis cannot be undone.',
+          style: TextStyle(
+            fontSize: 13.5,
+            height: 1.4,
+            color: AppColors.textSecondaryDark,
+          ),
         ),
         actions: [
           TextButton(

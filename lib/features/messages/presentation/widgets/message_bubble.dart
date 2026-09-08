@@ -1,7 +1,7 @@
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/extensions.dart';
@@ -30,7 +30,7 @@ class MessageBubble extends StatelessWidget {
     final theme = context.theme;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 3.5),
       child: Row(
         mainAxisAlignment: isMine
             ? MainAxisAlignment.end
@@ -40,7 +40,7 @@ class MessageBubble extends StatelessWidget {
           if (!isMine) const SizedBox(width: 4),
           Flexible(
             child: GestureDetector(
-              onLongPress: isMine && !message.isDeleted && onDelete != null
+              onLongPress: !message.isDeleted
                   ? () => _showContextMenu(context)
                   : null,
               child: Container(
@@ -52,22 +52,31 @@ class MessageBubble extends StatelessWidget {
                   vertical: message.isImage ? 4 : 10,
                 ),
                 decoration: BoxDecoration(
+                  gradient: isMine && message.status != MessageStatus.failed
+                      ? AppColors.sentBubbleGradient
+                      : null,
                   color: isMine
                       ? (message.status == MessageStatus.failed
                             ? AppColors.error.withAlpha(200)
-                            : AppColors.primary)
-                      : theme.colorScheme.surfaceContainerHighest,
+                            : null)
+                      : AppColors.surfaceVariantDark,
                   borderRadius: BorderRadius.only(
                     topLeft: const Radius.circular(18),
                     topRight: const Radius.circular(18),
                     bottomLeft: Radius.circular(isMine ? 18 : 4),
                     bottomRight: Radius.circular(isMine ? 4 : 18),
                   ),
+                  border: Border.all(
+                    color: isMine
+                        ? Colors.white.withValues(alpha: 0.12)
+                        : AppColors.surfaceBorder,
+                    width: 0.8,
+                  ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withAlpha(10),
-                      blurRadius: 4,
-                      offset: const Offset(0, 1),
+                      color: Colors.black.withValues(alpha: 0.15),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
                     ),
                   ],
                 ),
@@ -76,7 +85,7 @@ class MessageBubble extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     _buildContent(context, theme),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 3),
                     Padding(
                       padding: EdgeInsets.symmetric(
                         horizontal: message.isImage ? 8 : 0,
@@ -91,8 +100,9 @@ class MessageBubble extends StatelessWidget {
                             style: TextStyle(
                               fontSize: 10,
                               color: isMine
-                                  ? Colors.white.withAlpha(180)
-                                  : theme.colorScheme.onSurface.withAlpha(130),
+                                  ? Colors.white.withValues(alpha: 0.7)
+                                  : AppColors.textMutedDark,
+                              fontWeight: FontWeight.w400,
                             ),
                           ),
                           if (isMine) ...[
@@ -122,17 +132,18 @@ class MessageBubble extends StatelessWidget {
             Icons.block_rounded,
             size: 14,
             color: isMine
-                ? Colors.white.withAlpha(180)
-                : theme.colorScheme.onSurface.withAlpha(150),
+                ? Colors.white.withValues(alpha: 0.7)
+                : AppColors.textMutedDark,
           ),
           const SizedBox(width: 6),
           Text(
             message.displayText,
-            style: theme.textTheme.bodyMedium?.copyWith(
+            style: TextStyle(
               fontStyle: FontStyle.italic,
+              fontSize: 13,
               color: isMine
-                  ? Colors.white.withAlpha(180)
-                  : theme.colorScheme.onSurface.withAlpha(150),
+                  ? Colors.white.withValues(alpha: 0.7)
+                  : AppColors.textMutedDark,
             ),
           ),
         ],
@@ -161,8 +172,9 @@ class MessageBubble extends StatelessWidget {
     // Standard text message
     return Text(
       message.displayText,
-      style: theme.textTheme.bodyMedium?.copyWith(
-        color: isMine ? Colors.white : theme.colorScheme.onSurface,
+      style: TextStyle(
+        fontSize: 15,
+        color: isMine ? Colors.white : AppColors.textPrimaryDark,
         height: 1.35,
       ),
     );
@@ -187,18 +199,18 @@ class MessageBubble extends StatelessWidget {
           onClosed: () => onViewOnceOpened?.call(),
         );
       },
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(14),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
-          color: isMine
-              ? Colors.white.withAlpha(30)
-              : AppColors.primary.withAlpha(20),
-          borderRadius: BorderRadius.circular(12),
+          color: isMine ? Colors.white.withAlpha(25) : AppColors.surfaceDark,
+          borderRadius: BorderRadius.circular(14),
           border: Border.all(
             color: opened
-                ? Colors.transparent
-                : (isMine ? Colors.white54 : AppColors.accent),
+                ? AppColors.surfaceBorder
+                : (isMine
+                      ? Colors.white38
+                      : AppColors.secondary.withAlpha(120)),
             width: 1,
           ),
         ),
@@ -206,48 +218,50 @@ class MessageBubble extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              padding: const EdgeInsets.all(6),
+              padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: opened
-                    ? Colors.grey.withAlpha(50)
+                    ? Colors.white.withAlpha(15)
                     : (isMine
                           ? Colors.white24
-                          : AppColors.accent.withAlpha(40)),
+                          : AppColors.secondary.withAlpha(35)),
               ),
               child: Icon(
                 opened ? Icons.done_all_rounded : Icons.looks_one_rounded,
                 size: 20,
                 color: opened
-                    ? (isMine ? Colors.white60 : Colors.grey)
-                    : (isMine ? Colors.white : AppColors.accent),
+                    ? (isMine ? Colors.white60 : AppColors.textMutedDark)
+                    : (isMine ? Colors.white : AppColors.secondary),
               ),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 12),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  opened ? 'Photo (Opened)' : 'Photo (View once)',
+                  opened ? 'Photo (Opened)' : 'Photo (View Once)',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
-                    fontSize: 14,
+                    fontSize: 13.5,
                     color: opened
-                        ? (isMine ? Colors.white60 : Colors.grey)
-                        : (isMine ? Colors.white : theme.colorScheme.onSurface),
-                    fontStyle: opened ? FontStyle.italic : FontStyle.normal,
+                        ? (isMine ? Colors.white60 : AppColors.textMutedDark)
+                        : (isMine ? Colors.white : AppColors.textPrimaryDark),
                   ),
                 ),
+                const SizedBox(height: 2),
                 Text(
                   opened
                       ? 'Expired'
                       : (isMine
                             ? 'Disappears after recipient views'
-                            : 'Tap to view once'),
+                            : 'Tap to view 1-time photo'),
                   style: TextStyle(
                     fontSize: 11,
-                    color: isMine ? Colors.white70 : Colors.black54,
+                    color: isMine
+                        ? Colors.white70
+                        : AppColors.textSecondaryDark,
                   ),
                 ),
               ],
@@ -289,7 +303,7 @@ class MessageBubble extends StatelessWidget {
             alignment: Alignment.center,
             child: Icon(
               Icons.image_not_supported_outlined,
-              color: isMine ? Colors.white60 : Colors.grey,
+              color: isMine ? Colors.white60 : AppColors.textMutedDark,
             ),
           ),
         if (message.content != null && message.content!.isNotEmpty)
@@ -297,8 +311,9 @@ class MessageBubble extends StatelessWidget {
             padding: const EdgeInsets.only(top: 6, left: 8, right: 8),
             child: Text(
               message.content!,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: isMine ? Colors.white : theme.colorScheme.onSurface,
+              style: TextStyle(
+                fontSize: 14,
+                color: isMine ? Colors.white : AppColors.textPrimaryDark,
               ),
             ),
           ),
@@ -350,7 +365,7 @@ class MessageBubble extends StatelessWidget {
         return const Icon(
           Icons.done_all_rounded,
           size: 13,
-          color: AppColors.accent,
+          color: AppColors.secondary,
         );
       case MessageStatus.failed:
         return const Icon(
@@ -364,28 +379,46 @@ class MessageBubble extends StatelessWidget {
   void _showContextMenu(BuildContext context) {
     showModalBottomSheet<void>(
       context: context,
+      backgroundColor: AppColors.surfaceDark,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(
-                Icons.delete_outline_rounded,
-                color: AppColors.error,
-              ),
-              title: const Text(
-                'Delete Message',
-                style: TextStyle(color: AppColors.error),
-              ),
-              onTap: () {
-                Navigator.of(ctx).pop();
-                onDelete?.call();
-              },
-            ),
-          ],
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (message.content != null && message.content!.isNotEmpty)
+                ListTile(
+                  leading: const Icon(
+                    Icons.copy_rounded,
+                    color: AppColors.primaryLight,
+                  ),
+                  title: const Text('Copy Message'),
+                  onTap: () {
+                    Navigator.of(ctx).pop();
+                    Clipboard.setData(ClipboardData(text: message.content!));
+                    context.showSnackBar('Message copied to clipboard');
+                  },
+                ),
+              if (isMine && onDelete != null)
+                ListTile(
+                  leading: const Icon(
+                    Icons.delete_outline_rounded,
+                    color: AppColors.error,
+                  ),
+                  title: const Text(
+                    'Delete Message',
+                    style: TextStyle(color: AppColors.error),
+                  ),
+                  onTap: () {
+                    Navigator.of(ctx).pop();
+                    onDelete?.call();
+                  },
+                ),
+            ],
+          ),
         ),
       ),
     );

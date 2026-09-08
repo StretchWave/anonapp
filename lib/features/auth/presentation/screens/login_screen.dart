@@ -7,10 +7,12 @@ import '../../../../core/routing/app_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/extensions.dart';
 import '../../../../core/utils/validators.dart';
+import '../../../../core/widgets/app_button.dart';
+import '../../../../core/widgets/app_card.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/auth_text_field.dart';
 
-/// Login screen with username/password authentication.
+/// Redesigned modern login screen with dark layered card aesthetics.
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
@@ -45,18 +47,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             password: _passwordController.text,
           );
 
-      // Check for errors in the auth notifier state.
       final authState = ref.read(authNotifierProvider);
       if (authState.hasError) {
         final error = authState.error;
         if (mounted) {
           final message = error is AppException
               ? error.message
-              : 'Login failed. Please try again.';
+              : 'Login failed. Please verify your credentials.';
           context.showSnackBar(message, isError: true);
         }
       }
-      // Router handles navigation on success via auth state change.
     } catch (e) {
       if (mounted) {
         final message = e is AppException
@@ -76,116 +76,142 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
+      appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go(AppRoutes.welcome);
+            }
+          },
+        ),
+      ),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
             child: Form(
               key: _formKey,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const SizedBox(height: 48),
-                  // Logo
+                  // Logo emblem
                   Center(
                     child: Container(
                       width: 72,
                       height: 72,
                       decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [AppColors.primary, AppColors.secondary],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.circular(18),
+                        gradient: AppColors.primaryGradient,
+                        borderRadius: BorderRadius.circular(22),
+                        boxShadow: AppColors.primaryGlow,
                       ),
                       child: const Icon(
-                        Icons.chat_bubble_rounded,
+                        Icons.lock_rounded,
                         color: Colors.white,
                         size: 36,
                       ),
                     ),
                   ),
                   const SizedBox(height: 24),
+
                   Text(
-                    'Welcome back',
+                    'Welcome Back',
                     textAlign: TextAlign.center,
-                    style: theme.textTheme.displaySmall,
+                    style: theme.textTheme.headlineMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -0.5,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Sign in to continue your private conversations',
+                    'Sign in to access your anonymous conversations',
                     textAlign: TextAlign.center,
                     style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurface.withAlpha(153),
+                      color: AppColors.textSecondaryDark,
                     ),
                   ),
-                  const SizedBox(height: 48),
+                  const SizedBox(height: 36),
 
-                  // Username
-                  AuthTextField(
-                    controller: _usernameController,
-                    hintText: 'Username',
-                    prefixIcon: Icons.person_outline_rounded,
-                    validator: Validators.username,
-                    textInputAction: TextInputAction.next,
-                    autofillHints: const [AutofillHints.username],
-                  ),
-                  const SizedBox(height: 16),
+                  // Card containing form
+                  AppCard(
+                    padding: const EdgeInsets.all(22),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // Username field
+                        AuthTextField(
+                          controller: _usernameController,
+                          labelText: 'Username',
+                          hintText: 'Enter your username',
+                          prefixIcon: Icons.alternate_email_rounded,
+                          validator: Validators.username,
+                          textInputAction: TextInputAction.next,
+                          autofillHints: const [AutofillHints.username],
+                        ),
+                        const SizedBox(height: 18),
 
-                  // Password
-                  AuthTextField(
-                    controller: _passwordController,
-                    hintText: 'Password',
-                    prefixIcon: Icons.lock_outline_rounded,
-                    obscureText: _obscurePassword,
-                    validator: Validators.password,
-                    textInputAction: TextInputAction.done,
-                    autofillHints: const [AutofillHints.password],
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscurePassword
-                            ? Icons.visibility_outlined
-                            : Icons.visibility_off_outlined,
-                      ),
-                      onPressed: () =>
-                          setState(() => _obscurePassword = !_obscurePassword),
-                    ),
-                  ),
-                  const SizedBox(height: 32),
-
-                  // Sign In button
-                  ElevatedButton(
-                    onPressed: _isLoading ? null : _handleLogin,
-                    child: _isLoading
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
+                        // Password field
+                        AuthTextField(
+                          controller: _passwordController,
+                          labelText: 'Password',
+                          hintText: 'Enter your password',
+                          prefixIcon: Icons.key_rounded,
+                          obscureText: _obscurePassword,
+                          validator: Validators.password,
+                          textInputAction: TextInputAction.done,
+                          autofillHints: const [AutofillHints.password],
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _obscurePassword
+                                  ? Icons.visibility_outlined
+                                  : Icons.visibility_off_outlined,
+                              size: 20,
+                              color: AppColors.textMutedDark,
                             ),
-                          )
-                        : const Text('Sign In'),
-                  ),
-                  const SizedBox(height: 20),
+                            onPressed: () => setState(
+                              () => _obscurePassword = !_obscurePassword,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 28),
 
-                  // Navigate to register
+                        // Submit Button
+                        AppButton(
+                          text: 'Sign In',
+                          icon: Icons.login_rounded,
+                          isLoading: _isLoading,
+                          onPressed: _handleLogin,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Bottom register prompt
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
                         "Don't have an account? ",
-                        style: theme.textTheme.bodyMedium,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: AppColors.textSecondaryDark,
+                        ),
                       ),
-                      TextButton(
-                        onPressed: () => context.go(AppRoutes.register),
-                        child: const Text('Sign Up'),
+                      GestureDetector(
+                        onTap: () => context.push(AppRoutes.register),
+                        child: const Text(
+                          'Sign Up',
+                          style: TextStyle(
+                            color: AppColors.primaryLight,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 48),
                 ],
               ),
             ),
