@@ -11,6 +11,7 @@ import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_card.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/auth_text_field.dart';
+import '../../../settings/presentation/providers/session_settings_provider.dart';
 
 /// Redesigned modern login screen with dark layered card aesthetics.
 class LoginScreen extends ConsumerStatefulWidget {
@@ -176,7 +177,74 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             ),
                           ),
                         ),
-                        const SizedBox(height: 28),
+                        const SizedBox(height: 12),
+
+                        // Remember login toggle
+                        Consumer(
+                          builder: (context, ref, _) {
+                            final rememberAsync = ref.watch(
+                              rememberLoginProvider,
+                            );
+                            final remember = rememberAsync.valueOrNull ?? true;
+
+                            return InkWell(
+                              onTap: () {
+                                ref
+                                    .read(rememberLoginProvider.notifier)
+                                    .setRememberLogin(!remember);
+                              },
+                              borderRadius: BorderRadius.circular(8),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 4,
+                                  horizontal: 2,
+                                ),
+                                child: Row(
+                                  children: [
+                                    SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: Checkbox(
+                                        value: remember,
+                                        activeColor: AppColors.primaryLight,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            5,
+                                          ),
+                                        ),
+                                        side: const BorderSide(
+                                          color: AppColors.textMutedDark,
+                                          width: 1.5,
+                                        ),
+                                        onChanged: (val) {
+                                          if (val != null) {
+                                            ref
+                                                .read(
+                                                  rememberLoginProvider
+                                                      .notifier,
+                                                )
+                                                .setRememberLogin(val);
+                                          }
+                                        },
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    const Expanded(
+                                      child: Text(
+                                        'Remember login on this device',
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          color: AppColors.textSecondaryDark,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 20),
 
                         // Submit Button
                         AppButton(

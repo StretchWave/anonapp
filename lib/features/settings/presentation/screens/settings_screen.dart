@@ -62,7 +62,7 @@ class SettingsScreen extends ConsumerWidget {
                 _SettingsNavTile(
                   icon: Icons.lock_outline_rounded,
                   title: 'Security',
-                  subtitle: 'Change password & E2EE verification',
+                  subtitle: 'Password, remember login & E2EE',
                   onTap: () => context.push('/settings/security'),
                 ),
               ],

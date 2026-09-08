@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../env/env.dart';
+import 'session_storage_service.dart';
 
 /// Provides the Supabase client to the application via Riverpod.
 ///
@@ -12,12 +13,14 @@ abstract final class SupabaseService {
   /// Initialise the Supabase SDK. Must be called before `runApp`.
   static Future<void> initialize() async {
     Env.validate();
+    final sessionKey = SessionStorageService.computeSessionKey(Env.supabaseUrl);
     await Supabase.initialize(
       url: Env.supabaseUrl,
       // ignore: deprecated_member_use
       anonKey: Env.supabaseAnonKey,
-      authOptions: const FlutterAuthClientOptions(
+      authOptions: FlutterAuthClientOptions(
         authFlowType: AuthFlowType.pkce,
+        localStorage: AnonAppLocalStorage(persistSessionKey: sessionKey),
       ),
       realtimeClientOptions: const RealtimeClientOptions(
         logLevel: kDebugMode ? RealtimeLogLevel.info : RealtimeLogLevel.error,

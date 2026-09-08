@@ -36,6 +36,7 @@ dependencies:
   # Utilities
   uuid: ^4.5.1
   connectivity_plus: ^6.1.4
+  web: ^1.1.1
   # Media & Voice
   image_picker: ^1.2.3
   record: ^5.2.0
