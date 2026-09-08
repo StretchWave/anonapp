@@ -221,11 +221,18 @@ class MessageRepository {
         );
       }
 
-      // 2. Persist cleared_at on conversations table
-      await _client
-          .from(SupabaseConstants.conversationsTable)
-          .update({'cleared_at': now.toIso8601String()})
-          .eq('id', conversationId);
+      // 2. Persist cleared_at using secure RPC (or fallback to update)
+      try {
+        await _client.rpc(
+          'clear_conversation_chat',
+          params: {'p_conversation_id': conversationId},
+        );
+      } catch (_) {
+        await _client
+            .from(SupabaseConstants.conversationsTable)
+            .update({'cleared_at': now.toIso8601String()})
+            .eq('id', conversationId);
+      }
     } catch (e, st) {
       throw ErrorHandler.handle(e, st);
     }

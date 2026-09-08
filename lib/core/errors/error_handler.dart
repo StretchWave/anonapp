@@ -8,9 +8,11 @@ import 'app_exception.dart';
 abstract final class ErrorHandler {
   /// Convert any thrown error into an [AppException].
   static AppException handle(Object error, [StackTrace? stackTrace]) {
-    debugPrint('[ERROR_HANDLER] Caught: $error');
-    if (stackTrace != null) {
-      debugPrint('[ERROR_HANDLER] Stack trace: $stackTrace');
+    if (kDebugMode) {
+      debugPrint('[ERROR_HANDLER] Caught: $error');
+      if (stackTrace != null) {
+        debugPrint('[ERROR_HANDLER] Stack trace: $stackTrace');
+      }
     }
 
     // Already an AppException — pass through.
@@ -38,12 +40,12 @@ abstract final class ErrorHandler {
       );
     }
 
-    return DatabaseException(
-      kReleaseMode
-          ? 'Something went wrong. Please try again.'
-          : 'Something went wrong: $error',
-      error,
-    );
+    // Check for block error in generic string
+    if (errorStr.contains('blocked') || errorStr.contains('unavailable')) {
+      return PermissionException('This user is currently unavailable.', error);
+    }
+
+    return DatabaseException('Something went wrong. Please try again.', error);
   }
 
   /// Returns a user-safe string for common auth error messages.
@@ -72,6 +74,21 @@ abstract final class ErrorHandler {
   /// Maps PostgREST errors to appropriate [AppException] subtypes.
   static AppException _mapPostgrestError(sb.PostgrestException error) {
     final code = error.code;
+    final msgLower = error.message.toLowerCase();
+
+    // Custom exception messages from PL/pgSQL
+    if (msgLower.contains('blocked') || msgLower.contains('unavailable')) {
+      return PermissionException(
+        'This user is currently unavailable or blocked.',
+        error,
+      );
+    }
+    if (msgLower.contains('unauthorized')) {
+      return PermissionException(
+        'You are not authorized to perform this action.',
+        error,
+      );
+    }
 
     // Relation does not exist (table not created in Supabase yet).
     if (code == '42P01') {
