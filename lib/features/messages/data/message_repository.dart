@@ -69,13 +69,7 @@ class MessageRepository {
         if (msg.expiresAt != null && nowUtc.isAfter(msg.expiresAt!)) {
           continue;
         }
-        if (msg.content != null && EncryptionService.isEncrypted(msg.content)) {
-          final decrypted = await EncryptionService.instance.decryptText(
-            msg.content!,
-            conversationId,
-          );
-          msg = msg.copyWith(content: decrypted);
-        }
+        msg = await _decryptMessagePayload(msg, conversationId);
         messages.add(msg);
       }
 
@@ -83,6 +77,31 @@ class MessageRepository {
     } catch (e, st) {
       throw ErrorHandler.handle(e, st);
     }
+  }
+
+  /// Decrypts text content and voice audio payloads locally for a message.
+  Future<Message> _decryptMessagePayload(
+    Message msg,
+    String conversationId,
+  ) async {
+    var result = msg;
+    if (result.content != null && EncryptionService.isEncrypted(result.content)) {
+      final decrypted = await EncryptionService.instance.decryptText(
+        result.content!,
+        conversationId,
+      );
+      result = result.copyWith(content: decrypted);
+    }
+    if (result.isAudio &&
+        result.mediaData != null &&
+        EncryptionService.isAudioEncrypted(result.mediaData)) {
+      final decryptedAudio = await EncryptionService.instance.decryptAudio(
+        result.mediaData!,
+        conversationId,
+      );
+      result = result.copyWith(mediaData: decryptedAudio);
+    }
+    return result;
   }
 
   /// Send a text message to a conversation.
@@ -154,14 +173,7 @@ class MessageRepository {
             final newRecord = payload.newRecord;
             if (newRecord.isNotEmpty) {
               var msg = Message.fromJson(newRecord);
-              if (msg.content != null &&
-                  EncryptionService.isEncrypted(msg.content)) {
-                final decrypted = await EncryptionService.instance.decryptText(
-                  msg.content!,
-                  conversationId,
-                );
-                msg = msg.copyWith(content: decrypted);
-              }
+              msg = await _decryptMessagePayload(msg, conversationId);
               onInsert(msg);
             }
           },
@@ -179,14 +191,7 @@ class MessageRepository {
             final newRecord = payload.newRecord;
             if (newRecord.isNotEmpty) {
               var msg = Message.fromJson(newRecord);
-              if (msg.content != null &&
-                  EncryptionService.isEncrypted(msg.content)) {
-                final decrypted = await EncryptionService.instance.decryptText(
-                  msg.content!,
-                  conversationId,
-                );
-                msg = msg.copyWith(content: decrypted);
-              }
+              msg = await _decryptMessagePayload(msg, conversationId);
               onUpdate(msg);
             }
           },
@@ -334,6 +339,7 @@ class MessageRepository {
   }
 
   /// Send a voice message with base64 encoded audio and duration.
+  /// Audio payload is encrypted with AES-256-GCM locally before storage in Supabase.
   Future<Message> sendVoiceMessage({
     required String conversationId,
     required String base64Audio,
@@ -343,11 +349,17 @@ class MessageRepository {
     try {
       final now = DateTime.now().toUtc();
 
+      // Encrypt audio payload locally before database insert
+      final encryptedAudio = await EncryptionService.instance.encryptAudio(
+        base64Audio,
+        conversationId,
+      );
+
       final payload = <String, dynamic>{
         'conversation_id': conversationId,
         'sender_id': _currentUserId,
         'message_type': 'audio',
-        'media_data': base64Audio,
+        'media_data': encryptedAudio,
         'media_meta': {'duration_ms': durationMs},
         'created_at': now.toIso8601String(),
       };
@@ -361,7 +373,9 @@ class MessageRepository {
           .select()
           .single();
 
-      return Message.fromJson(row);
+      final serverMessage = Message.fromJson(row);
+      // Return message with local unencrypted base64 for immediate UI playback
+      return serverMessage.copyWith(mediaData: base64Audio);
     } catch (e, st) {
       throw ErrorHandler.handle(e, st);
     }

@@ -160,7 +160,33 @@ class MessageBubble extends ConsumerWidget {
 
     // Voice Message
     if (message.isAudio) {
-      return VoicePlayer(base64Audio: message.mediaData ?? '', isMine: isMine);
+      if (message.mediaData == null || message.mediaData!.isEmpty) {
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.mic_off_rounded,
+              size: 20,
+              color: isMine ? Colors.white70 : AppColors.textMutedDark,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              'Voice message unavailable',
+              style: TextStyle(
+                fontSize: 13,
+                fontStyle: FontStyle.italic,
+                color: isMine ? Colors.white70 : AppColors.textMutedDark,
+              ),
+            ),
+          ],
+        );
+      }
+      final durationMs = message.mediaMeta?['duration_ms'] as int?;
+      return VoicePlayer(
+        base64Audio: message.mediaData!,
+        isMine: isMine,
+        totalDurationMs: durationMs,
+      );
     }
 
     // View-Once Photo Message

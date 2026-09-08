@@ -186,6 +186,7 @@ class Message {
     String? clientId,
     String? mediaUrl,
     String? mediaData,
+    bool clearMediaData = false,
     Map<String, dynamic>? mediaMeta,
     DateTime? createdAt,
     DateTime? deliveredAt,
@@ -195,20 +196,29 @@ class Message {
     DateTime? expiresAt,
     MessageStatus? status,
   }) {
+    final effectiveType = messageType ?? this.messageType;
+    final effectiveViewedAt = viewedAt ?? this.viewedAt;
+
+    final effectiveMediaData = clearMediaData
+        ? null
+        : (effectiveType == MessageType.viewOnceImage && effectiveViewedAt != null)
+            ? null
+            : (mediaData ?? this.mediaData);
+
     return Message(
       id: id ?? this.id,
       conversationId: conversationId ?? this.conversationId,
       senderId: senderId ?? this.senderId,
       content: content ?? this.content,
-      messageType: messageType ?? this.messageType,
+      messageType: effectiveType,
       clientId: clientId ?? this.clientId,
       mediaUrl: mediaUrl ?? this.mediaUrl,
-      mediaData: mediaData ?? this.mediaData,
+      mediaData: effectiveMediaData,
       mediaMeta: mediaMeta ?? this.mediaMeta,
       createdAt: createdAt ?? this.createdAt,
       deliveredAt: deliveredAt ?? this.deliveredAt,
       readAt: readAt ?? this.readAt,
-      viewedAt: viewedAt ?? this.viewedAt,
+      viewedAt: effectiveViewedAt,
       deletedAt: deletedAt ?? this.deletedAt,
       expiresAt: expiresAt ?? this.expiresAt,
       status: status ?? this.status,

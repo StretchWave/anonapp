@@ -88,10 +88,78 @@ Blocking is enforced at the database layer (PostgreSQL RLS and RPCs), not merely
 ## 8. Current Encryption Status & True E2EE Roadmap
 
 ### Current Model
-Text messages are encrypted locally using AES-256-GCM before transmission. Conversation participants derive symmetric keys locally.
+- **Text Messages**: Encrypted locally using AES-256-GCM before insertion into Supabase (`ENC:v1:<nonce>:<ciphertext>:<mac>`).
+- **Voice Messages**: Audio payloads are decoded and encrypted locally using AES-256-GCM before storage in Supabase (`ENC_AUDIO:v1:<nonce>:<ciphertext>:<mac>`). Decryption occurs locally upon retrieval (initial fetch and realtime stream) for in-memory playback. Plaintext audio is never sent to Supabase.
+- **Images & Photos**: Unencrypted. Images and view-once photos remain stored using the existing media pipeline without encryption, per product specification.
+- **Key Derivation**: Conversation participants derive symmetric 256-bit keys locally via HKDF-SHA256 from the shared `conversation_id` with a domain separation salt.
+
+> [!IMPORTANT]
+> **Not True End-to-End Encryption**: The current system provides application-layer symmetric encryption against passive database inspection and storage compromise. It does **not** constitute true zero-knowledge E2EE because the conversation identifier is known to the server.
 
 ### Roadmap to True End-to-End Encryption (Signal / Double Ratchet Protocol)
 To achieve true, zero-knowledge cryptographic E2EE that withstands server compromise, the following enhancements are planned:
-1. **Asymmetric Identity Keys & Prekeys**: Each client publishes signed prekeys and one-time prekeys to the database.
+1. **Asymmetric Identity Keys & Prekeys**: Each client generates an asymmetric key pair and publishes signed prekeys and one-time prekeys to the database (X3DH protocol).
 2. **Double Ratchet Protocol**: Session keys ratchet forward per-message, guaranteeing Perfect Forward Secrecy (PFS) and Break-in Recovery (Post-Compromise Security).
-3. **Out-of-Band Safety Numbers**: QR code / numeric fingerprint comparison between conversation participants.
+3. **Out-of-Band Safety Numbers**: QR code / numeric fingerprint comparison between conversation participants to prevent active Man-in-the-Middle (MITM) attacks.
+
+---
+
+## 9. Red-Team Security Matrix
+
+The following matrix documents simulated attacks, the required authorization boundary, the evaluated result, and the server-side fix:
+
+| Attack | Expected Result | Actual Result | Fixed? | Enforcement Layer |
+|---|---|---|---|---|
+| **Read another user's private profile / contact code** | Denied (`NULL` / RLS denial) | Denied | **Yes** | `profile_secrets` RLS + `get_my_contact_code` RPC |
+| **Read another user's conversation / messages** | Denied (Empty / 403) | Denied | **Yes** | `messages_select_member` & `is_member_of_conversation` |
+| **Insert message with forged sender_id** | Denied (RLS check violation) | Denied | **Yes** | `messages_insert_member` (`sender_id = auth.uid()`) |
+| **Insert message with future timestamp (2099)** | Normalized to `now()` | Normalized | **Yes** | `trg_protect_message_fields_on_insert` |
+| **Recipient modify message text or media** | Denied / Values preserved | Preserved | **Yes** | `protect_message_fields_on_update` trigger |
+| **Recipient reset view-once state (`viewed_at = NULL`)** | Denied / Value preserved | Preserved | **Yes** | `protect_message_fields_on_update` trigger |
+| **Sender forge recipient read / delivery / view receipt** | Denied / Values preserved | Preserved | **Yes** | `protect_message_fields_on_update` trigger |
+| **Concurrent view-once race condition exploit** | Single success, second fails | Serialized | **Yes** | `mark_view_once_opened` with `FOR UPDATE` lock |
+| **Create unverified conversation without membership** | Denied | Denied | **Yes** | `find_or_create_direct_conversation` RPC |
+| **Set `cleared_at` in the future to suppress chat** | Denied (Exception) | Denied | **Yes** | `protect_conversation_fields` trigger |
+| **Bypass block to send message** | Denied (RLS check violation) | Denied | **Yes** | `messages_insert_member` block check |
+| **Bypass block via contact code lookup** | Returns `NULL` | Denied | **Yes** | `find_profile_by_contact_code` block check |
+| **Download another conversation's media from storage** | Denied (403 Unauthorized) | Denied | **Yes** | `storage.objects` `media_select_authorized` policy |
+| **Overwrite another user's media file in storage** | Denied (403 Unauthorized) | Denied | **Yes** | `storage.objects` `media_update_denied` policy |
+| **Execute database cleanup (`clean_expired_messages`)** | Denied (Permission denied) | Denied | **Yes** | Function privilege lockdown (`REVOKE FROM PUBLIC`) |
+| **Brute-force contact codes (> 30 / min)** | Denied (Rate limit exception) | Denied | **Yes** | `check_rate_limit` server-side engine |
+| **Call admin report inspection without admin role** | Denied (Exception / 0 rows) | Denied | **Yes** | `is_admin()` + `app_admins` RLS |
+
+---
+
+## 10. Server-Side Administrator Framework
+
+For this private deployment, administrators are authorized to audit moderation reports and inspect media payloads:
+1. **No Client-Side Trust**: Administrator status is never determined by Flutter booleans, client-side flags, or user-editable profile columns.
+2. **Server-Side Verification**: `public.is_admin()` checks:
+   - Verified JWT `app_metadata` (`auth.jwt()->'app_metadata'->>'is_admin' = 'true'`), which can only be set via Supabase Dashboard or service role.
+   - Dedicated database table `public.app_admins`, which is locked down with zero client INSERT/UPDATE/DELETE privileges.
+3. **Auditable Scope**:
+   - `user_reports`: Administrators have SELECT and DELETE access for moderation review.
+   - `storage.objects`: Administrators can inspect media files in `medias` bucket for safety compliance.
+   - Normal users receive hard database authorization errors if attempting admin operations.
+
+---
+
+## 11. View-Once Atomic Concurrency & Lifecycle
+
+View-once media adheres to strict one-time consumption:
+1. **Server-Side Persistence**: View-once media files are stored indefinitely on the server for administrator review.
+2. **Atomic Consumption**: `mark_view_once_opened` acquires an exclusive row lock (`FOR UPDATE`) on the target message. Concurrent requests are serialized.
+3. **Replay Denial**: Once `viewed_at` is set, subsequent calls strictly return `FALSE`.
+4. **Client-Side Wipe**: The client destroys in-memory and local cached copies upon closing the view-once dialog.
+
+---
+
+## 12. Supabase Storage Security Policies
+
+The `medias` bucket is configured as strictly private (`public = false`):
+- **SELECT**: Restricted to conversation participants verified by `public.is_member_of_conversation()` (excluding blocked pairs) or verified administrators.
+- **INSERT**: Allowed only when the caller participates in the conversation and uploads under their own `auth.uid()` path segment (`conversation_id/uploader_id/filename`).
+- **UPDATE**: Universally denied (`media_update_denied`). Storage objects are immutable.
+- **DELETE**: Restricted to the original uploader or verified administrators.
+
+

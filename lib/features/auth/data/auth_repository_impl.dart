@@ -119,6 +119,17 @@ class AuthRepositoryImpl implements AuthRepository {
           .maybeSingle();
 
       if (row == null) return null;
+
+      // If contact_code is protected at column-level, fetch via get_my_contact_code RPC
+      if (row['contact_code'] == null) {
+        try {
+          final code = await _client.rpc('get_my_contact_code');
+          if (code != null) {
+            row['contact_code'] = code as String;
+          }
+        } catch (_) {}
+      }
+
       return UserProfile.fromJson(row);
     } catch (e, st) {
       throw ErrorHandler.handle(e, st);

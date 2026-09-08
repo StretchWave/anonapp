@@ -95,6 +95,31 @@ class _VoicePlayerState extends State<VoicePlayer> {
 
   @override
   Widget build(BuildContext context) {
+    if (_audioBytes == null || _audioBytes!.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.mic_off_rounded,
+              size: 20,
+              color: widget.isMine ? Colors.white70 : AppColors.textMutedDark,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              'Voice message unavailable',
+              style: TextStyle(
+                fontSize: 13,
+                fontStyle: FontStyle.italic,
+                color: widget.isMine ? Colors.white70 : AppColors.textMutedDark,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     final effectiveDuration = _duration > Duration.zero
         ? _duration
         : Duration(milliseconds: widget.totalDurationMs ?? 0);
