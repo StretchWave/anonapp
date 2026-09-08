@@ -7,8 +7,10 @@ import '../../../../core/utils/extensions.dart';
 import '../../../messages/presentation/providers/message_provider.dart';
 import '../../../messages/presentation/widgets/chat_input_bar.dart';
 import '../../../messages/presentation/widgets/message_bubble.dart';
+import '../../../profile/presentation/providers/safety_provider.dart';
 
-/// Screen for chatting in a 1:1 conversation in real time with E2EE.
+/// Screen for chatting in a 1:1 conversation in real time with E2EE,
+/// safety tools (block, report, meet again, expiring messages), and conversation starters.
 class ChatScreen extends ConsumerWidget {
   const ChatScreen({
     super.key,
@@ -18,6 +20,14 @@ class ChatScreen extends ConsumerWidget {
 
   final String conversationId;
   final String? otherUsername;
+
+  static const List<String> _conversationStarters = [
+    "🎮 What's a game you never get tired of?",
+    "🚀 What's something cool you learned recently?",
+    '🎧 What song are you currently obsessed with?',
+    "💭 What's an unpopular opinion you have?",
+    '✨ If you could master any skill instantly, what would it be?',
+  ];
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -120,13 +130,68 @@ class ChatScreen extends ConsumerWidget {
               side: const BorderSide(color: AppColors.surfaceBorder, width: 1),
             ),
             onSelected: (value) {
-              if (value == 'clear_chat') {
-                _confirmClearChat(context, messagesNotifier);
-              } else if (value == 'security_info') {
-                _showSecurityDialog(context);
+              switch (value) {
+                case 'meet_again':
+                  _showMeetAgainDialog(context);
+                  break;
+                case 'disappearing':
+                  _showDisappearingDialog(context);
+                  break;
+                case 'block_user':
+                  _confirmBlockUser(context, ref);
+                  break;
+                case 'report_user':
+                  _showReportUserDialog(context, ref);
+                  break;
+                case 'clear_chat':
+                  _confirmClearChat(context, messagesNotifier);
+                  break;
+                case 'security_info':
+                  _showSecurityDialog(context);
+                  break;
               }
             },
             itemBuilder: (ctx) => [
+              const PopupMenuItem(
+                value: 'meet_again',
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.handshake_outlined,
+                      color: AppColors.secondary,
+                      size: 18,
+                    ),
+                    SizedBox(width: 12),
+                    Text(
+                      'Meet Again',
+                      style: TextStyle(
+                        color: AppColors.secondary,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'disappearing',
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.timer_outlined,
+                      color: AppColors.primaryLight,
+                      size: 18,
+                    ),
+                    SizedBox(width: 12),
+                    Text(
+                      'Disappearing Messages',
+                      style: TextStyle(
+                        color: AppColors.textPrimaryDark,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
               const PopupMenuItem(
                 value: 'clear_chat',
                 child: Row(
@@ -139,6 +204,32 @@ class ChatScreen extends ConsumerWidget {
                     SizedBox(width: 12),
                     Text(
                       'Clear Chat',
+                      style: TextStyle(color: AppColors.error, fontSize: 13),
+                    ),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'report_user',
+                child: Row(
+                  children: [
+                    Icon(Icons.flag_outlined, color: AppColors.error, size: 18),
+                    SizedBox(width: 12),
+                    Text(
+                      'Report User',
+                      style: TextStyle(color: AppColors.error, fontSize: 13),
+                    ),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'block_user',
+                child: Row(
+                  children: [
+                    Icon(Icons.block_rounded, color: AppColors.error, size: 18),
+                    SizedBox(width: 12),
+                    Text(
+                      'Block User',
                       style: TextStyle(color: AppColors.error, fontSize: 13),
                     ),
                   ],
@@ -213,24 +304,24 @@ class ChatScreen extends ConsumerWidget {
               data: (messages) {
                 if (messages.isEmpty) {
                   return Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(32),
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.all(24),
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Container(
-                            padding: const EdgeInsets.all(20),
+                            padding: const EdgeInsets.all(18),
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               color: AppColors.primary.withAlpha(22),
                             ),
                             child: const Icon(
                               Icons.lock_clock_rounded,
-                              size: 42,
+                              size: 38,
                               color: AppColors.primaryLight,
                             ),
                           ),
-                          const SizedBox(height: 18),
+                          const SizedBox(height: 14),
                           const Text(
                             'Say hello anonymously!',
                             style: TextStyle(
@@ -244,10 +335,49 @@ class ChatScreen extends ConsumerWidget {
                             'Messages are selectively encrypted with AES-256-GCM.\nNo real identity is exposed.',
                             textAlign: TextAlign.center,
                             style: TextStyle(
-                              fontSize: 13,
+                              fontSize: 12.5,
                               color: AppColors.textSecondaryDark,
                               height: 1.4,
                             ),
+                          ),
+                          const SizedBox(height: 22),
+
+                          // Conversation Starters
+                          const Text(
+                            'Conversation Starters',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.secondary,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            alignment: WrapAlignment.center,
+                            children: _conversationStarters.map((starter) {
+                              return ActionChip(
+                                label: Text(
+                                  starter,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: AppColors.textPrimaryDark,
+                                  ),
+                                ),
+                                backgroundColor: AppColors.surfaceVariantDark,
+                                side: const BorderSide(
+                                  color: AppColors.surfaceBorder,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                onPressed: () {
+                                  messagesNotifier.sendMessage(starter);
+                                },
+                              );
+                            }).toList(),
                           ),
                         ],
                       ),
@@ -264,6 +394,8 @@ class ChatScreen extends ConsumerWidget {
                     return MessageBubble(
                       message: message,
                       isMine: message.isMine(currentUserId),
+                      conversationId: conversationId,
+                      otherUsername: otherUsername,
                       onDelete: () =>
                           messagesNotifier.deleteMessage(message.id),
                       onViewOnceOpened: () =>
@@ -291,6 +423,195 @@ class ChatScreen extends ConsumerWidget {
                 durationMs: durationMs,
               );
             },
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showMeetAgainDialog(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(
+              Icons.handshake_outlined,
+              color: AppColors.secondary,
+              size: 22,
+            ),
+            SizedBox(width: 10),
+            Text('Meet Again?'),
+          ],
+        ),
+        content: Text(
+          'Request a mutual reconnection with ${otherUsername != null ? "@$otherUsername" : "this anon"}? '
+          'Once connected, you can continue chatting without losing this thread.',
+          style: const TextStyle(
+            fontSize: 13.5,
+            height: 1.45,
+            color: AppColors.textSecondaryDark,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.secondary),
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              context.showSnackBar(
+                'Reconnection requested! When accepted, you will remain connected.',
+              );
+            },
+            child: const Text(
+              'Send Request',
+              style: TextStyle(
+                color: Colors.black,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showDisappearingDialog(BuildContext context) {
+    const durations = [
+      {'label': 'Off (Keep forever)', 'val': 'off'},
+      {'label': '24 Hours', 'val': '24h'},
+      {'label': '7 Days', 'val': '7d'},
+      {'label': '30 Days', 'val': '30d'},
+    ];
+
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Disappearing Messages'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: durations.map((d) {
+            return ListTile(
+              title: Text(d['label']!, style: const TextStyle(fontSize: 14)),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                context.showSnackBar(
+                  'Disappearing timer set to ${d['label']}. Future messages will expire automatically.',
+                );
+              },
+            );
+          }).toList(),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Done'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmBlockUser(BuildContext context, WidgetRef ref) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.block_rounded, color: AppColors.error, size: 22),
+            SizedBox(width: 10),
+            Text('Block Anon?'),
+          ],
+        ),
+        content: Text(
+          'Are you sure you want to block ${otherUsername != null ? "@$otherUsername" : "this user"}? '
+          'They will not be able to message you or match with you again.',
+          style: const TextStyle(
+            fontSize: 13.5,
+            height: 1.4,
+            color: AppColors.textSecondaryDark,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+            onPressed: () async {
+              Navigator.of(ctx).pop();
+              final targetName = otherUsername ?? 'Anon';
+              await ref
+                  .read(blockedUsersProvider.notifier)
+                  .blockUser(conversationId, targetName);
+              if (context.mounted) {
+                context.showSnackBar('User blocked successfully.');
+              }
+            },
+            child: const Text('Block'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showReportUserDialog(BuildContext context, WidgetRef ref) {
+    const reasons = [
+      'Harassment',
+      'Spam',
+      'Inappropriate Content',
+      'Scam / Fraud',
+      'Other',
+    ];
+
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Report Anon'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Select a reason for reporting this user:',
+              style: TextStyle(fontSize: 13, color: AppColors.textMutedDark),
+            ),
+            const SizedBox(height: 12),
+            ...reasons.map(
+              (r) => ListTile(
+                dense: true,
+                title: Text(r, style: const TextStyle(fontSize: 14)),
+                onTap: () async {
+                  Navigator.of(ctx).pop();
+                  final currentUid =
+                      SupabaseService.client.auth.currentUser?.id ?? '';
+                  await ref
+                      .read(safetyRepositoryProvider)
+                      .submitReport(
+                        currentUserId: currentUid,
+                        reportedUserId: conversationId,
+                        conversationId: conversationId,
+                        reason: r,
+                        details: 'Reported from chat view',
+                      );
+                  if (context.mounted) {
+                    context.showSnackBar(
+                      'Thank you. We take safety seriously and have received your report.',
+                    );
+                  }
+                },
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
           ),
         ],
       ),

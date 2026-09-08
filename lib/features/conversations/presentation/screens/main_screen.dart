@@ -3,11 +3,11 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
-import '../../../settings/presentation/screens/settings_screen.dart';
-import '../../../users/presentation/screens/user_search_screen.dart';
+import '../../../discover/presentation/screens/discover_screen.dart';
+import '../../../profile/presentation/screens/profile_screen.dart';
 import 'conversations_screen.dart';
 
-/// Main shell with custom bottom navigation connecting Chats, Discover, and Identity.
+/// Main shell with custom bottom navigation connecting Chats, Discover, and Profile.
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
 
@@ -28,8 +28,8 @@ class _MainScreenState extends State<MainScreen> {
   Widget build(BuildContext context) {
     final pages = [
       ConversationsScreen(onNavigateToSearch: () => _onSelectTab(1)),
-      const UserSearchScreen(),
-      const SettingsScreen(),
+      const DiscoverScreen(),
+      const ProfileScreen(),
     ];
 
     return Scaffold(
@@ -75,9 +75,9 @@ class _MainScreenState extends State<MainScreen> {
               ),
               _buildNavItem(
                 index: 2,
-                label: 'Identity',
-                icon: Icons.shield_outlined,
-                activeIcon: Icons.shield_rounded,
+                label: 'Profile',
+                icon: Icons.person_outline_rounded,
+                activeIcon: Icons.person_rounded,
               ),
             ],
           ),

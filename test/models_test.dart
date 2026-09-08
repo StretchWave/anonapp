@@ -34,6 +34,36 @@ void main() {
       expect(reconstructed.username, profile.username);
       expect(reconstructed.contactCode, profile.contactCode);
     });
+
+    test('serializes and deserializes extended attributes correctly', () {
+      final now = DateTime.now();
+      final profile = UserProfile(
+        id: 'u-999',
+        username: 'cryptofox',
+        displayName: 'Shadow Fox',
+        contactCode: 'XYZ98765',
+        createdAt: now,
+        bio: 'Just another ghost in the wire',
+        avatar: 'fox',
+        interests: const ['Gaming', 'Coding', 'Privacy'],
+        persona: 'NightCoder',
+        onlineStatusVisible: false,
+      );
+
+      final json = profile.toJson();
+      expect(json['bio'], 'Just another ghost in the wire');
+      expect(json['avatar'], 'fox');
+      expect(json['interests'], ['Gaming', 'Coding', 'Privacy']);
+      expect(json['persona'], 'NightCoder');
+      expect(json['online_status_visible'], false);
+
+      final reconstructed = UserProfile.fromJson(json);
+      expect(reconstructed.bio, 'Just another ghost in the wire');
+      expect(reconstructed.avatar, 'fox');
+      expect(reconstructed.interests, ['Gaming', 'Coding', 'Privacy']);
+      expect(reconstructed.persona, 'NightCoder');
+      expect(reconstructed.onlineStatusVisible, false);
+    });
   });
 
   group('Conversation Model', () {

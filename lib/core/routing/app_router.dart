@@ -9,8 +9,16 @@ import '../../features/auth/presentation/screens/splash_screen.dart';
 import '../../features/auth/presentation/screens/welcome_screen.dart';
 import '../../features/chat/presentation/screens/chat_screen.dart';
 import '../../features/conversations/presentation/screens/main_screen.dart';
+import '../../features/discover/presentation/screens/discover_screen.dart';
+import '../../features/profile/presentation/screens/bookmarks_screen.dart';
+import '../../features/profile/presentation/screens/edit_profile_screen.dart';
+import '../../features/profile/presentation/screens/profile_screen.dart';
+import '../../features/settings/presentation/screens/appearance_settings_screen.dart';
+import '../../features/settings/presentation/screens/blocked_users_screen.dart';
+import '../../features/settings/presentation/screens/help_faq_screen.dart';
+import '../../features/settings/presentation/screens/privacy_settings_screen.dart';
+import '../../features/settings/presentation/screens/security_settings_screen.dart';
 import '../../features/settings/presentation/screens/settings_screen.dart';
-import '../../features/users/presentation/screens/user_search_screen.dart';
 
 /// Named route paths.
 abstract final class AppRoutes {
@@ -20,8 +28,16 @@ abstract final class AppRoutes {
   static const String register = '/register';
   static const String main = '/main';
   static const String chat = '/chat/:conversationId';
-  static const String settings = '/settings';
   static const String search = '/search';
+  static const String profile = '/profile';
+  static const String editProfile = '/profile/edit';
+  static const String bookmarks = '/profile/bookmarks';
+  static const String settings = '/settings';
+  static const String privacy = '/settings/privacy';
+  static const String appearance = '/settings/appearance';
+  static const String security = '/settings/security';
+  static const String blocked = '/settings/blocked';
+  static const String help = '/settings/help';
 }
 
 /// Global navigator key for programmatic deep-linking (e.g. from notification taps).
@@ -93,11 +109,43 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: AppRoutes.search,
-        builder: (context, state) => const UserSearchScreen(),
+        builder: (context, state) => const DiscoverScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.profile,
+        builder: (context, state) => const ProfileScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.editProfile,
+        builder: (context, state) => const EditProfileScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.bookmarks,
+        builder: (context, state) => const BookmarksScreen(),
       ),
       GoRoute(
         path: AppRoutes.settings,
         builder: (context, state) => const SettingsScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.privacy,
+        builder: (context, state) => const PrivacySettingsScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.appearance,
+        builder: (context, state) => const AppearanceSettingsScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.security,
+        builder: (context, state) => const SecuritySettingsScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.blocked,
+        builder: (context, state) => const BlockedUsersScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.help,
+        builder: (context, state) => const HelpFaqScreen(),
       ),
       GoRoute(
         path: AppRoutes.chat,

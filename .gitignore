@@ -51,6 +51,7 @@ app.*.map.json
 !.env.example
 
 # Firebase
+.firebase/
 **/android/app/google-services.json
 **/ios/Runner/GoogleService-Info.plist
 **/ios/firebase_app_id_file.json
