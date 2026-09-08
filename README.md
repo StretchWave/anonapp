@@ -11,7 +11,6 @@
   - Text messages are encrypted client-side using authenticated AES-256-GCM before transmission.
   - Per-conversation 256-bit symmetric keys are derived on-the-fly with HKDF-SHA256.
   - Payloads are formatted as `ENC:v1:<nonce>:<ciphertext>:<mac>` with backwards compatibility for legacy logs.
-  - Images, view-once photos, and media are safely stored directly without ciphertext corruption.
 
 - **Native Mobile Notifications (Android & iOS)**:
   - High-priority local notification channel with Android 13+ runtime permissions.
