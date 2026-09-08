@@ -28,10 +28,8 @@ class ViewOnceDialog extends StatefulWidget {
       PageRouteBuilder(
         opaque: false,
         barrierDismissible: true,
-        pageBuilder: (ctx, animation, secondaryAnimation) => ViewOnceDialog(
-          message: message,
-          onClosed: onClosed,
-        ),
+        pageBuilder: (ctx, animation, secondaryAnimation) =>
+            ViewOnceDialog(message: message, onClosed: onClosed),
       ),
     );
     onClosed();
@@ -66,7 +64,8 @@ class _ViewOnceDialogState extends State<ViewOnceDialog> {
 
   Future<void> _loadMedia() async {
     // 1. Try in-memory mediaData first
-    if (widget.message.mediaData != null && widget.message.mediaData!.isNotEmpty) {
+    if (widget.message.mediaData != null &&
+        widget.message.mediaData!.isNotEmpty) {
       final decoded = _safeBase64Decode(widget.message.mediaData!);
       if (decoded != null) {
         if (mounted) {
@@ -137,7 +136,11 @@ class _ViewOnceDialogState extends State<ViewOnceDialog> {
               child: const Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.looks_one_rounded, size: 16, color: AppColors.accent),
+                  Icon(
+                    Icons.looks_one_rounded,
+                    size: 16,
+                    color: AppColors.accent,
+                  ),
                   SizedBox(width: 6),
                   Text(
                     'View Once',
@@ -156,31 +159,9 @@ class _ViewOnceDialogState extends State<ViewOnceDialog> {
       body: SafeArea(
         child: Column(
           children: [
-            Container(
-              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.white.withAlpha(20),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.visibility_off_outlined, color: Colors.white70, size: 16),
-                  SizedBox(width: 8),
-                  Text(
-                    'This photo will be permanently deleted after closing.',
-                    style: TextStyle(color: Colors.white70, fontSize: 12),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: Center(
-                child: _buildBody(),
-              ),
-            ),
-            if (widget.message.content != null && widget.message.content!.isNotEmpty)
+            Expanded(child: Center(child: _buildBody())),
+            if (widget.message.content != null &&
+                widget.message.content!.isNotEmpty)
               Container(
                 padding: const EdgeInsets.all(16),
                 width: double.infinity,
@@ -207,7 +188,7 @@ class _ViewOnceDialogState extends State<ViewOnceDialog> {
           ),
           SizedBox(height: 16),
           Text(
-            'Opening secure photo...',
+            'Loading photo...',
             style: TextStyle(color: Colors.white70, fontSize: 13),
           ),
         ],
@@ -218,10 +199,7 @@ class _ViewOnceDialogState extends State<ViewOnceDialog> {
       return InteractiveViewer(
         minScale: 0.8,
         maxScale: 3.5,
-        child: Image.memory(
-          _bytes!,
-          fit: BoxFit.contain,
-        ),
+        child: Image.memory(_bytes!, fit: BoxFit.contain),
       );
     }
 

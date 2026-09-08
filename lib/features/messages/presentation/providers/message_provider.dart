@@ -8,6 +8,7 @@ import 'package:uuid/uuid.dart';
 import '../../../../core/services/supabase_service.dart';
 import '../../data/message_repository.dart';
 import '../../domain/models/message.dart';
+import 'notification_provider.dart';
 
 /// Provider for the [MessageRepository].
 final messageRepositoryProvider = Provider<MessageRepository>((ref) {
@@ -18,17 +19,30 @@ final messageRepositoryProvider = Provider<MessageRepository>((ref) {
 /// State of messages for a single conversation.
 /// Handles initial fetch, realtime sync, optimistic sending, and read receipts.
 final conversationMessagesProvider = StateNotifierProvider.autoDispose
-    .family<MessagesNotifier, AsyncValue<List<Message>>, String>(
-  (ref, conversationId) {
-    final repo = ref.watch(messageRepositoryProvider);
-    final client = ref.watch(supabaseClientProvider);
-    return MessagesNotifier(repo, client, conversationId);
-  },
-);
+    .family<MessagesNotifier, AsyncValue<List<Message>>, String>((
+      ref,
+      conversationId,
+    ) {
+      Future.microtask(() {
+        try {
+          ref.read(activeConversationIdProvider.notifier).state =
+              conversationId;
+        } catch (_) {}
+      });
+      ref.onDispose(() {
+        if (ref.read(activeConversationIdProvider) == conversationId) {
+          ref.read(activeConversationIdProvider.notifier).state = null;
+        }
+      });
+
+      final repo = ref.watch(messageRepositoryProvider);
+      final client = ref.watch(supabaseClientProvider);
+      return MessagesNotifier(repo, client, conversationId);
+    });
 
 class MessagesNotifier extends StateNotifier<AsyncValue<List<Message>>> {
   MessagesNotifier(this._repo, this._client, this._conversationId)
-      : super(const AsyncLoading()) {
+    : super(const AsyncLoading()) {
     _loadMessages();
     _subscribeRealtime();
   }
@@ -44,13 +58,16 @@ class MessagesNotifier extends StateNotifier<AsyncValue<List<Message>>> {
 
   Future<void> _loadMessages() async {
     try {
-      final messages = await _repo.getMessages(_conversationId);
+      final fetchResult = await _repo.getMessages(_conversationId);
+      _clearedAt = fetchResult.clearedAt;
+      final messages = fetchResult.messages;
       final prefs = await SharedPreferences.getInstance();
 
       // Ensure view-once images already viewed locally have mediaData stripped client-side
       final adjusted = messages.map((m) {
         if (m.isViewOnce) {
-          final isViewedLocally = prefs.getBool('viewed_once_${m.id}_$_currentUserId') ?? false;
+          final isViewedLocally =
+              prefs.getBool('viewed_once_${m.id}_$_currentUserId') ?? false;
           if (isViewedLocally || m.viewedAt != null) {
             return m.copyWith(
               mediaData: null,
@@ -77,7 +94,11 @@ class MessagesNotifier extends StateNotifier<AsyncValue<List<Message>>> {
 
         // Check if this incoming message matches an optimistic message by clientId
         final indexByClient = newMessage.clientId != null
-            ? currentMessages.indexWhere((m) => m.clientId == newMessage.clientId)
+            ? currentMessages.indexWhere(
+                (m) =>
+                    (m.clientId != null && m.clientId == newMessage.clientId) ||
+                    m.id == newMessage.clientId,
+              )
             : -1;
 
         if (indexByClient != -1) {
@@ -85,7 +106,12 @@ class MessagesNotifier extends StateNotifier<AsyncValue<List<Message>>> {
           updated[indexByClient] = newMessage;
           state = AsyncData(updated);
         } else if (!currentMessages.any((m) => m.id == newMessage.id)) {
-          if (_clearedAt == null || newMessage.createdAt.isAfter(_clearedAt!)) {
+          final isAfterClear =
+              _clearedAt == null ||
+              newMessage.createdAt.isAfter(_clearedAt!) ||
+              newMessage.senderId == _currentUserId;
+
+          if (isAfterClear) {
             // Prepend newest message (list is sorted newest first)
             state = AsyncData([newMessage, ...currentMessages]);
           }
@@ -97,25 +123,35 @@ class MessagesNotifier extends StateNotifier<AsyncValue<List<Message>>> {
         }
       },
       onChatCleared: (clearedAt) {
+        if (_clearedAt != null && !clearedAt.isAfter(_clearedAt!)) {
+          return;
+        }
         _clearedAt = clearedAt;
-        state = const AsyncData([]);
+        final currentMessages = state.valueOrNull ?? [];
+        state = AsyncData(
+          currentMessages.where((m) => m.createdAt.isAfter(clearedAt)).toList(),
+        );
       },
       onUpdate: (updatedMessage) {
         final currentMessages = state.valueOrNull ?? [];
-        final index = currentMessages.indexWhere((m) => m.id == updatedMessage.id);
+        final index = currentMessages.indexWhere(
+          (m) => m.id == updatedMessage.id,
+        );
         if (index != -1) {
           final existingMessage = currentMessages[index];
 
           // If the updated record from PostgreSQL logical replication omitted unchanged TOAST columns
           // (such as media_data or media_meta), preserve them from the existing in-memory message
           // UNLESS the message was explicitly marked as viewed/burned (viewedAt != null) or deleted.
-          final effectiveMediaData = (updatedMessage.mediaData == null &&
+          final effectiveMediaData =
+              (updatedMessage.mediaData == null &&
                   updatedMessage.viewedAt == null &&
                   !updatedMessage.isDeleted)
               ? existingMessage.mediaData
               : updatedMessage.mediaData;
 
-          final effectiveMediaMeta = (updatedMessage.mediaMeta == null &&
+          final effectiveMediaMeta =
+              (updatedMessage.mediaMeta == null &&
                   updatedMessage.viewedAt == null &&
                   !updatedMessage.isDeleted)
               ? existingMessage.mediaMeta
@@ -135,7 +171,10 @@ class MessagesNotifier extends StateNotifier<AsyncValue<List<Message>>> {
   }
 
   /// Optimistically adds a message, sends it to Supabase, and updates status.
-  Future<void> sendMessage(String text, {Duration? disappearingDuration}) async {
+  Future<void> sendMessage(
+    String text, {
+    Duration? disappearingDuration,
+  }) async {
     final trimmed = text.trim();
     if (trimmed.isEmpty) return;
 
@@ -164,7 +203,12 @@ class MessagesNotifier extends StateNotifier<AsyncValue<List<Message>>> {
 
       // Replace optimistic message with confirmed server message
       final currentList = state.valueOrNull ?? [];
-      final idx = currentList.indexWhere((m) => m.clientId == clientId);
+      final idx = currentList.indexWhere(
+        (m) =>
+            (m.clientId != null && m.clientId == clientId) ||
+            m.id == clientId ||
+            m.id == confirmed.id,
+      );
       if (idx != -1) {
         final updated = List<Message>.from(currentList);
         updated[idx] = confirmed;
@@ -173,13 +217,15 @@ class MessagesNotifier extends StateNotifier<AsyncValue<List<Message>>> {
     } catch (e) {
       // Mark optimistic message as failed
       final currentList = state.valueOrNull ?? [];
-      final idx = currentList.indexWhere((m) => m.clientId == clientId);
+      final idx = currentList.indexWhere(
+        (m) =>
+            (m.clientId != null && m.clientId == clientId) || m.id == clientId,
+      );
       if (idx != -1) {
         final updated = List<Message>.from(currentList);
         updated[idx] = updated[idx].copyWith(status: MessageStatus.failed);
         state = AsyncData(updated);
       }
-      rethrow;
     }
   }
 
@@ -227,7 +273,12 @@ class MessagesNotifier extends StateNotifier<AsyncValue<List<Message>>> {
       );
 
       final currentList = state.valueOrNull ?? [];
-      final idx = currentList.indexWhere((m) => m.clientId == clientId);
+      final idx = currentList.indexWhere(
+        (m) =>
+            (m.clientId != null && m.clientId == clientId) ||
+            m.id == clientId ||
+            m.id == confirmed.id,
+      );
       if (idx != -1) {
         final updated = List<Message>.from(currentList);
         updated[idx] = confirmed;
@@ -235,13 +286,15 @@ class MessagesNotifier extends StateNotifier<AsyncValue<List<Message>>> {
       }
     } catch (e) {
       final currentList = state.valueOrNull ?? [];
-      final idx = currentList.indexWhere((m) => m.clientId == clientId);
+      final idx = currentList.indexWhere(
+        (m) =>
+            (m.clientId != null && m.clientId == clientId) || m.id == clientId,
+      );
       if (idx != -1) {
         final updated = List<Message>.from(currentList);
         updated[idx] = updated[idx].copyWith(status: MessageStatus.failed);
         state = AsyncData(updated);
       }
-      rethrow;
     }
   }
 
@@ -275,7 +328,12 @@ class MessagesNotifier extends StateNotifier<AsyncValue<List<Message>>> {
       );
 
       final currentList = state.valueOrNull ?? [];
-      final idx = currentList.indexWhere((m) => m.clientId == clientId);
+      final idx = currentList.indexWhere(
+        (m) =>
+            (m.clientId != null && m.clientId == clientId) ||
+            m.id == clientId ||
+            m.id == confirmed.id,
+      );
       if (idx != -1) {
         final updated = List<Message>.from(currentList);
         updated[idx] = confirmed;
@@ -283,13 +341,15 @@ class MessagesNotifier extends StateNotifier<AsyncValue<List<Message>>> {
       }
     } catch (e) {
       final currentList = state.valueOrNull ?? [];
-      final idx = currentList.indexWhere((m) => m.clientId == clientId);
+      final idx = currentList.indexWhere(
+        (m) =>
+            (m.clientId != null && m.clientId == clientId) || m.id == clientId,
+      );
       if (idx != -1) {
         final updated = List<Message>.from(currentList);
         updated[idx] = updated[idx].copyWith(status: MessageStatus.failed);
         state = AsyncData(updated);
       }
-      rethrow;
     }
   }
 

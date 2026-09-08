@@ -1,11 +1,5 @@
 /// Delivery / read status of a message.
-enum MessageStatus {
-  sending,
-  sent,
-  delivered,
-  read,
-  failed,
-}
+enum MessageStatus { sending, sent, delivered, read, failed }
 
 /// Type of a message.
 enum MessageType {
@@ -72,11 +66,11 @@ class Message {
     final deletedAtStr = json['deleted_at'] as String?;
     final expiresAtStr = json['expires_at'] as String?;
 
-    final deliveredAt =
-        deliveredAtStr != null ? DateTime.parse(deliveredAtStr) : null;
+    final deliveredAt = deliveredAtStr != null
+        ? DateTime.parse(deliveredAtStr)
+        : null;
     final readAt = readAtStr != null ? DateTime.parse(readAtStr) : null;
-    final viewedAt =
-        viewedAtStr != null ? DateTime.parse(viewedAtStr) : null;
+    final viewedAt = viewedAtStr != null ? DateTime.parse(viewedAtStr) : null;
 
     MessageStatus resolvedStatus = MessageStatus.sent;
     if (readAt != null) {

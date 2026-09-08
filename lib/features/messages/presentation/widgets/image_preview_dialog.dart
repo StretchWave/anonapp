@@ -6,11 +6,8 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 
 /// Callback when user confirms sending an image.
-typedef OnSendImageCallback = void Function(
-  String base64Image,
-  String? caption,
-  bool isViewOnce,
-);
+typedef OnSendImageCallback =
+    void Function(String base64Image, String? caption, bool isViewOnce);
 
 /// Modal dialog showing picked image preview with caption and View-Once toggle.
 class ImagePreviewDialog extends StatefulWidget {
@@ -32,10 +29,8 @@ class ImagePreviewDialog extends StatefulWidget {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => ImagePreviewDialog(
-        imageBytes: imageBytes,
-        onSend: onSend,
-      ),
+      builder: (ctx) =>
+          ImagePreviewDialog(imageBytes: imageBytes, onSend: onSend),
     );
   }
 
@@ -106,7 +101,9 @@ class _ImagePreviewDialogState extends State<ImagePreviewDialog> {
                   selectedColor: AppColors.accent,
                   checkmarkColor: Colors.white,
                   labelStyle: TextStyle(
-                    color: _isViewOnce ? Colors.white : theme.colorScheme.onSurface,
+                    color: _isViewOnce
+                        ? Colors.white
+                        : theme.colorScheme.onSurface,
                     fontWeight: FontWeight.w600,
                     fontSize: 12,
                   ),
@@ -135,29 +132,6 @@ class _ImagePreviewDialogState extends State<ImagePreviewDialog> {
               ),
             ),
           ),
-
-          if (_isViewOnce)
-            Container(
-              margin: const EdgeInsets.only(top: 12, left: 16, right: 16),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              decoration: BoxDecoration(
-                color: AppColors.accent.withAlpha(25),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: AppColors.accent.withAlpha(80)),
-              ),
-              child: const Row(
-                children: [
-                  Icon(Icons.shield_outlined, color: AppColors.accent, size: 16),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Saved in database and permanently purged after recipient views it once.',
-                      style: TextStyle(color: AppColors.accent, fontSize: 12),
-                    ),
-                  ),
-                ],
-              ),
-            ),
 
           // Caption & Send controls
           Padding(

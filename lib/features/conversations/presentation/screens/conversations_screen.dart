@@ -9,10 +9,7 @@ import '../providers/conversation_provider.dart';
 
 /// Screen displaying the list of active conversations.
 class ConversationsScreen extends ConsumerWidget {
-  const ConversationsScreen({
-    super.key,
-    this.onNavigateToSearch,
-  });
+  const ConversationsScreen({super.key, this.onNavigateToSearch});
 
   /// Optional callback to switch to the search tab.
   final VoidCallback? onNavigateToSearch;
@@ -63,9 +60,7 @@ class ConversationsScreen extends ConsumerWidget {
           await ref.read(conversationsProvider.future);
         },
         child: conversationsAsync.when(
-          loading: () => const Center(
-            child: CircularProgressIndicator(),
-          ),
+          loading: () => const Center(child: CircularProgressIndicator()),
           error: (error, _) => Center(
             child: Padding(
               padding: const EdgeInsets.all(24),
@@ -103,7 +98,8 @@ class ConversationsScreen extends ConsumerWidget {
           data: (conversations) {
             if (conversations.isEmpty) {
               return _EmptyConversationsView(
-                onStartChat: onNavigateToSearch ?? () => context.push('/search'),
+                onStartChat:
+                    onNavigateToSearch ?? () => context.push('/search'),
               );
             }
 
@@ -120,9 +116,7 @@ class ConversationsScreen extends ConsumerWidget {
                   conversation: conversation,
                   onTap: () {
                     final username = conversation.otherMemberUsername ?? '';
-                    context.push(
-                      '/chat/${conversation.id}?username=$username',
-                    );
+                    context.push('/chat/${conversation.id}?username=$username');
                   },
                   onToggleMute: () async {
                     final repo = ref.read(conversationRepositoryProvider);

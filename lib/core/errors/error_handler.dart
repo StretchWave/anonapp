@@ -39,7 +39,9 @@ abstract final class ErrorHandler {
     }
 
     return DatabaseException(
-      'Something went wrong: $error',
+      kReleaseMode
+          ? 'Something went wrong. Please try again.'
+          : 'Something went wrong: $error',
       error,
     );
   }
@@ -62,7 +64,9 @@ abstract final class ErrorHandler {
     if (lower.contains('rate limit')) {
       return 'Too many attempts. Please wait a moment.';
     }
-    return 'Authentication failed: $raw';
+    return kReleaseMode
+        ? 'Authentication failed. Please check your credentials.'
+        : 'Authentication failed: $raw';
   }
 
   /// Maps PostgREST errors to appropriate [AppException] subtypes.
@@ -72,7 +76,9 @@ abstract final class ErrorHandler {
     // Relation does not exist (table not created in Supabase yet).
     if (code == '42P01') {
       return DatabaseException(
-        'Database table not found (${error.message}). Please run the database setup script in Supabase SQL Editor.',
+        kReleaseMode
+            ? 'Service is temporarily unavailable. Please try again later.'
+            : 'Database table not found (${error.message}). Please run the database setup script in Supabase SQL Editor.',
         error,
       );
     }
@@ -80,7 +86,9 @@ abstract final class ErrorHandler {
     // RLS violation / permission denied.
     if (code == '42501') {
       return PermissionException(
-        'You do not have permission to perform this action (${error.message}).',
+        kReleaseMode
+            ? 'You do not have permission to perform this action.'
+            : 'You do not have permission to perform this action (${error.message}).',
         error,
       );
     }
@@ -101,18 +109,30 @@ abstract final class ErrorHandler {
 
     // Check constraint violation.
     if (code == '23514') {
-      return ValidationException('Input validation failed: ${error.message}', error);
+      return ValidationException(
+        kReleaseMode
+            ? 'Input validation failed. Please check your input.'
+            : 'Input validation failed: ${error.message}',
+        error,
+      );
     }
 
     // Foreign key violation.
     if (code == '23503') {
-      return DatabaseException('Referenced record does not exist (${error.message}).', error);
+      return DatabaseException(
+        kReleaseMode
+            ? 'Referenced record was not found.'
+            : 'Referenced record does not exist (${error.message}).',
+        error,
+      );
     }
 
     return DatabaseException(
-      error.message.isNotEmpty
-          ? error.message
-          : 'A database error occurred. Please try again.',
+      kReleaseMode
+          ? 'A database error occurred. Please try again.'
+          : (error.message.isNotEmpty
+                ? error.message
+                : 'A database error occurred. Please try again.'),
       error,
     );
   }

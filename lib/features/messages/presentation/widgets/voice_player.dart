@@ -100,11 +100,16 @@ class _VoicePlayerState extends State<VoicePlayer> {
         : Duration(milliseconds: widget.totalDurationMs ?? 0);
 
     final progress = effectiveDuration.inMilliseconds > 0
-        ? (_position.inMilliseconds / effectiveDuration.inMilliseconds).clamp(0.0, 1.0)
+        ? (_position.inMilliseconds / effectiveDuration.inMilliseconds).clamp(
+            0.0,
+            1.0,
+          )
         : 0.0;
 
     final activeColor = widget.isMine ? Colors.white : AppColors.primary;
-    final inactiveColor = widget.isMine ? Colors.white38 : AppColors.primary.withAlpha(77);
+    final inactiveColor = widget.isMine
+        ? Colors.white38
+        : AppColors.primary.withAlpha(77);
 
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -141,8 +146,12 @@ class _VoicePlayerState extends State<VoicePlayer> {
                 SliderTheme(
                   data: SliderTheme.of(context).copyWith(
                     trackHeight: 4,
-                    thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-                    overlayShape: const RoundSliderOverlayShape(overlayRadius: 10),
+                    thumbShape: const RoundSliderThumbShape(
+                      enabledThumbRadius: 6,
+                    ),
+                    overlayShape: const RoundSliderOverlayShape(
+                      overlayRadius: 10,
+                    ),
                     activeTrackColor: activeColor,
                     inactiveTrackColor: inactiveColor,
                     thumbColor: activeColor,
@@ -150,7 +159,8 @@ class _VoicePlayerState extends State<VoicePlayer> {
                   child: Slider(
                     value: progress,
                     onChanged: (val) {
-                      final seekMs = (val * effectiveDuration.inMilliseconds).round();
+                      final seekMs = (val * effectiveDuration.inMilliseconds)
+                          .round();
                       _player.seek(Duration(milliseconds: seekMs));
                     },
                   ),
@@ -161,10 +171,14 @@ class _VoicePlayerState extends State<VoicePlayer> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        _formatDuration(_isPlaying ? _position : effectiveDuration),
+                        _formatDuration(
+                          _isPlaying ? _position : effectiveDuration,
+                        ),
                         style: TextStyle(
                           fontSize: 11,
-                          color: widget.isMine ? Colors.white70 : Colors.black54,
+                          color: widget.isMine
+                              ? Colors.white70
+                              : Colors.black54,
                           fontFamily: 'monospace',
                         ),
                       ),
@@ -173,14 +187,18 @@ class _VoicePlayerState extends State<VoicePlayer> {
                           Icon(
                             Icons.mic_rounded,
                             size: 12,
-                            color: widget.isMine ? Colors.white70 : Colors.black45,
+                            color: widget.isMine
+                                ? Colors.white70
+                                : Colors.black45,
                           ),
                           const SizedBox(width: 2),
                           Text(
                             'Voice note',
                             style: TextStyle(
                               fontSize: 10,
-                              color: widget.isMine ? Colors.white70 : Colors.black45,
+                              color: widget.isMine
+                                  ? Colors.white70
+                                  : Colors.black45,
                             ),
                           ),
                         ],

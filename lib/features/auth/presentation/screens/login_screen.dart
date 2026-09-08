@@ -38,7 +38,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     setState(() => _isLoading = true);
 
     try {
-      await ref.read(authNotifierProvider.notifier).signIn(
+      await ref
+          .read(authNotifierProvider.notifier)
+          .signIn(
             username: _usernameController.text.trim(),
             password: _passwordController.text,
           );
@@ -57,8 +59,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       // Router handles navigation on success via auth state change.
     } catch (e) {
       if (mounted) {
-        final message =
-            e is AppException ? e.message : 'Login failed. Please try again.';
+        final message = e is AppException
+            ? e.message
+            : 'Login failed. Please try again.';
         context.showSnackBar(message, isError: true);
       }
     } finally {

@@ -73,8 +73,12 @@ abstract final class Validators {
 
   /// Message content: non-empty, max 5000 chars.
   static String? messageContent(String? value) {
-    if (value == null || value.trim().isEmpty) return 'Message cannot be empty.';
-    if (value.length > 5000) return 'Message is too long.';
+    if (value == null || value.trim().isEmpty) {
+      return 'Message cannot be empty.';
+    }
+    if (value.length > 5000) {
+      return 'Message is too long.';
+    }
     return null;
   }
 }

@@ -14,8 +14,10 @@ final userRepositoryProvider = Provider<UserRepository>((ref) {
 
 /// Debounced user search provider.
 /// Searches by username when query length >= 3.
-final userSearchProvider =
-    FutureProvider.family<List<UserProfile>, String>((ref, query) async {
+final userSearchProvider = FutureProvider.family<List<UserProfile>, String>((
+  ref,
+  query,
+) async {
   if (query.length < 3) return [];
 
   // Debounce: wait 300ms before searching.

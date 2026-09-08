@@ -132,32 +132,6 @@ class ChatScreen extends ConsumerWidget {
       ),
       body: Column(
         children: [
-          // Security header banner
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-            color: AppColors.accent.withAlpha(18),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(
-                  Icons.lock_outline_rounded,
-                  size: 13,
-                  color: AppColors.accent,
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  'Messages are secured with Supabase Row-Level Security',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: AppColors.accent,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
-          ),
-
           // Messages list
           Expanded(
             child: messagesAsync.when(
@@ -277,8 +251,7 @@ class ChatScreen extends ConsumerWidget {
         ),
         content: const Text(
           'In AnonApp, you are only known by your username and contact code. '
-          'Your login password, email, phone number, or real identity are never exposed.\n\n'
-          'PostgreSQL Row-Level Security ensures only you and your chat partner can access these messages.',
+          'Your login password, email, phone number, or real identity are never exposed.',
         ),
         actions: [
           TextButton(

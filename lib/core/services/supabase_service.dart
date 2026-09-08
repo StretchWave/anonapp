@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -19,7 +20,7 @@ abstract final class SupabaseService {
         authFlowType: AuthFlowType.pkce,
       ),
       realtimeClientOptions: const RealtimeClientOptions(
-        logLevel: RealtimeLogLevel.info,
+        logLevel: kDebugMode ? RealtimeLogLevel.info : RealtimeLogLevel.error,
       ),
     );
   }

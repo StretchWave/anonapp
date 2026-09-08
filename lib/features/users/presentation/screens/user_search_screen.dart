@@ -26,7 +26,10 @@ class _UserSearchScreenState extends ConsumerState<UserSearchScreen> {
     super.dispose();
   }
 
-  Future<void> _startConversation(String otherUserId, String otherUsername) async {
+  Future<void> _startConversation(
+    String otherUserId,
+    String otherUsername,
+  ) async {
     try {
       final repo = ref.read(conversationRepositoryProvider);
       final convId = await repo.findOrCreateDirectConversation(otherUserId);
@@ -53,9 +56,7 @@ class _UserSearchScreenState extends ConsumerState<UserSearchScreen> {
     final searchResults = ref.watch(userSearchProvider(_query));
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Find Users'),
-      ),
+      appBar: AppBar(title: const Text('Find Users')),
       body: Column(
         children: [
           // Search bar
@@ -113,9 +114,8 @@ class _UserSearchScreenState extends ConsumerState<UserSearchScreen> {
                     ),
                   )
                 : searchResults.when(
-                    loading: () => const Center(
-                      child: CircularProgressIndicator(),
-                    ),
+                    loading: () =>
+                        const Center(child: CircularProgressIndicator()),
                     error: (e, _) => Center(
                       child: Text(
                         e is AppException
@@ -132,8 +132,7 @@ class _UserSearchScreenState extends ConsumerState<UserSearchScreen> {
                           child: Text(
                             'No users found for "$_query".',
                             style: theme.textTheme.bodyMedium?.copyWith(
-                              color:
-                                  theme.colorScheme.onSurface.withAlpha(153),
+                              color: theme.colorScheme.onSurface.withAlpha(153),
                             ),
                           ),
                         );
@@ -142,7 +141,8 @@ class _UserSearchScreenState extends ConsumerState<UserSearchScreen> {
                       return ListView.separated(
                         padding: const EdgeInsets.symmetric(horizontal: 8),
                         itemCount: users.length,
-                        separatorBuilder: (context, index) => const Divider(height: 1),
+                        separatorBuilder: (context, index) =>
+                            const Divider(height: 1),
                         itemBuilder: (context, index) {
                           final user = users[index];
                           return ListTile(
@@ -160,16 +160,19 @@ class _UserSearchScreenState extends ConsumerState<UserSearchScreen> {
                               user.username,
                               style: theme.textTheme.titleMedium,
                             ),
-                            subtitle: user.contactCode != null
+                            subtitle:
+                                user.displayName != null &&
+                                    user.displayName!.isNotEmpty
                                 ? Text(
-                                    'Code: ${user.contactCode}',
+                                    user.displayName!,
                                     style: theme.textTheme.bodySmall?.copyWith(
                                       color: theme.colorScheme.onSurface
                                           .withAlpha(102),
                                     ),
                                   )
                                 : null,
-                            onTap: () => _startConversation(user.id, user.username),
+                            onTap: () =>
+                                _startConversation(user.id, user.username),
                             trailing: IconButton(
                               icon: const Icon(Icons.chat_bubble_outline),
                               color: AppColors.primary,

@@ -9,6 +9,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/utils/extensions.dart';
+import '../../../../core/utils/file_cleanup.dart';
 import 'image_preview_dialog.dart';
 
 /// Text and rich media input bar supporting Enter-to-send, voice recording,
@@ -101,14 +103,10 @@ class _ChatInputBarState extends State<ChatInputBar> {
     } catch (e) {
       debugPrint('[ChatInputBar] Error picking image: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Could not open image picker: $e\n'
-              'Note: If packages were newly installed, please stop and restart `flutter run`.',
-            ),
-            backgroundColor: AppColors.error,
-          ),
+        context.showSnackBar(
+          'Could not open image picker: $e\n'
+          'Note: If packages were newly installed, please stop and restart `flutter run`.',
+          isError: true,
         );
       }
     }
@@ -119,11 +117,9 @@ class _ChatInputBarState extends State<ChatInputBar> {
       final hasPermission = await _audioRecorder.hasPermission();
       if (!hasPermission) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Microphone permission required. Please allow access.'),
-              backgroundColor: AppColors.error,
-            ),
+          context.showSnackBar(
+            'Microphone permission required. Please allow access.',
+            isError: true,
           );
         }
         return;
@@ -132,10 +128,14 @@ class _ChatInputBarState extends State<ChatInputBar> {
       // Determine the best supported audio encoder for the platform
       AudioEncoder encoder = AudioEncoder.aacLc;
       if (kIsWeb) {
-        final isOpus = await _audioRecorder.isEncoderSupported(AudioEncoder.opus);
+        final isOpus = await _audioRecorder.isEncoderSupported(
+          AudioEncoder.opus,
+        );
         encoder = isOpus ? AudioEncoder.opus : AudioEncoder.aacLc;
       } else {
-        final isAac = await _audioRecorder.isEncoderSupported(AudioEncoder.aacLc);
+        final isAac = await _audioRecorder.isEncoderSupported(
+          AudioEncoder.aacLc,
+        );
         encoder = isAac ? AudioEncoder.aacLc : AudioEncoder.opus;
       }
 
@@ -144,7 +144,8 @@ class _ChatInputBarState extends State<ChatInputBar> {
       if (!kIsWeb) {
         final tempDir = await getTemporaryDirectory();
         final ext = encoder == AudioEncoder.opus ? 'webm' : 'm4a';
-        targetPath = '${tempDir.path}/rec_${DateTime.now().millisecondsSinceEpoch}.$ext';
+        targetPath =
+            '${tempDir.path}/rec_${DateTime.now().millisecondsSinceEpoch}.$ext';
       }
 
       final config = RecordConfig(encoder: encoder);
@@ -167,14 +168,10 @@ class _ChatInputBarState extends State<ChatInputBar> {
     } catch (e) {
       debugPrint('[ChatInputBar] Error starting recording: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Could not start recording: $e\n'
-              'Note: If packages were newly installed, please stop and restart `flutter run`.',
-            ),
-            backgroundColor: AppColors.error,
-          ),
+        context.showSnackBar(
+          'Could not start recording: $e\n'
+          'Note: If packages were newly installed, please stop and restart `flutter run`.',
+          isError: true,
         );
       }
     }
@@ -183,7 +180,8 @@ class _ChatInputBarState extends State<ChatInputBar> {
   Future<void> _cancelRecording() async {
     try {
       _recordTimer?.cancel();
-      await _audioRecorder.stop();
+      final path = await _audioRecorder.stop();
+      await deleteTempFile(path);
     } catch (_) {}
     if (mounted) {
       setState(() {
@@ -211,15 +209,15 @@ class _ChatInputBarState extends State<ChatInputBar> {
       if (path != null && path.isNotEmpty) {
         final xFile = XFile(path);
         final bytes = await xFile.readAsBytes();
+        // Immediately clean up temporary unencrypted audio file from disk
+        await deleteTempFile(path);
         final base64Audio = base64Encode(bytes);
         widget.onSendVoice?.call(base64Audio, durationMs);
       } else {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Recording produced no audio data.'),
-              backgroundColor: AppColors.error,
-            ),
+          context.showSnackBar(
+            'Recording produced no audio data.',
+            isError: true,
           );
         }
       }
@@ -227,12 +225,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
       debugPrint('[ChatInputBar] Error stopping recording: $e');
       if (mounted) {
         setState(() => _isRecording = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to process voice note: $e'),
-            backgroundColor: AppColors.error,
-          ),
-        );
+        context.showSnackBar('Failed to process voice note: $e', isError: true);
       }
     }
   }
@@ -271,7 +264,10 @@ class _ChatInputBarState extends State<ChatInputBar> {
     return Row(
       children: [
         IconButton(
-          icon: const Icon(Icons.delete_outline_rounded, color: AppColors.error),
+          icon: const Icon(
+            Icons.delete_outline_rounded,
+            color: AppColors.error,
+          ),
           tooltip: 'Discard',
           onPressed: _cancelRecording,
         ),

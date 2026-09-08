@@ -18,7 +18,7 @@ class UserRepository {
 
       final results = await _client
           .from(SupabaseConstants.profilesTable)
-          .select()
+          .select('id, username, display_name, created_at, last_seen')
           .neq('id', userId)
           .ilike('username', '%$query%')
           .limit(20);

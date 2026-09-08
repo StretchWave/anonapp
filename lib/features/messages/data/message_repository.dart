@@ -2,7 +2,16 @@ import 'package:supabase_flutter/supabase_flutter.dart' hide AuthException;
 
 import '../../../../core/constants/supabase_constants.dart';
 import '../../../../core/errors/error_handler.dart';
+import '../../../../core/services/encryption_service.dart';
 import '../domain/models/message.dart';
+
+/// Result of fetching messages, including the conversation's [clearedAt] timestamp.
+class MessagesFetchResult {
+  const MessagesFetchResult({required this.messages, this.clearedAt});
+
+  final List<Message> messages;
+  final DateTime? clearedAt;
+}
 
 /// Repository handling message persistence and Supabase Realtime synchronization.
 class MessageRepository {
@@ -14,7 +23,7 @@ class MessageRepository {
   String get _currentUserId => _client.auth.currentUser!.id;
 
   /// Fetch messages for a conversation ordered from newest to oldest.
-  Future<List<Message>> getMessages(
+  Future<MessagesFetchResult> getMessages(
     String conversationId, {
     int limit = 50,
     DateTime? before,
@@ -45,11 +54,32 @@ class MessageRepository {
         query = query.lt('created_at', before.toIso8601String());
       }
 
+      // Filter out expired disappearing messages at query level
+      final nowIso = DateTime.now().toUtc().toIso8601String();
+      query = query.or('expires_at.is.null,expires_at.gt.$nowIso');
+
       final rows = await query
           .order('created_at', ascending: false)
           .limit(limit);
 
-      return rows.map((r) => Message.fromJson(r)).toList();
+      final nowUtc = DateTime.now().toUtc();
+      final messages = <Message>[];
+      for (final r in rows) {
+        var msg = Message.fromJson(r);
+        if (msg.expiresAt != null && nowUtc.isAfter(msg.expiresAt!)) {
+          continue;
+        }
+        if (msg.content != null && EncryptionService.isEncrypted(msg.content)) {
+          final decrypted = await EncryptionService.instance.decryptText(
+            msg.content!,
+            conversationId,
+          );
+          msg = msg.copyWith(content: decrypted);
+        }
+        messages.add(msg);
+      }
+
+      return MessagesFetchResult(messages: messages, clearedAt: clearedAt);
     } catch (e, st) {
       throw ErrorHandler.handle(e, st);
     }
@@ -69,10 +99,15 @@ class MessageRepository {
         expiresAt = now.add(disappearingDuration);
       }
 
+      final encryptedContent = await EncryptionService.instance.encryptText(
+        content.trim(),
+        conversationId,
+      );
+
       final payload = <String, dynamic>{
         'conversation_id': conversationId,
         'sender_id': _currentUserId,
-        'content': content.trim(),
+        'content': encryptedContent,
         'message_type': 'text',
         'created_at': now.toIso8601String(),
       };
@@ -89,7 +124,8 @@ class MessageRepository {
           .select()
           .single();
 
-      return Message.fromJson(row);
+      final serverMessage = Message.fromJson(row);
+      return serverMessage.copyWith(content: content.trim());
     } catch (e, st) {
       throw ErrorHandler.handle(e, st);
     }
@@ -114,10 +150,19 @@ class MessageRepository {
             column: 'conversation_id',
             value: conversationId,
           ),
-          callback: (payload) {
+          callback: (payload) async {
             final newRecord = payload.newRecord;
             if (newRecord.isNotEmpty) {
-              onInsert(Message.fromJson(newRecord));
+              var msg = Message.fromJson(newRecord);
+              if (msg.content != null &&
+                  EncryptionService.isEncrypted(msg.content)) {
+                final decrypted = await EncryptionService.instance.decryptText(
+                  msg.content!,
+                  conversationId,
+                );
+                msg = msg.copyWith(content: decrypted);
+              }
+              onInsert(msg);
             }
           },
         )
@@ -130,27 +175,19 @@ class MessageRepository {
             column: 'conversation_id',
             value: conversationId,
           ),
-          callback: (payload) {
+          callback: (payload) async {
             final newRecord = payload.newRecord;
             if (newRecord.isNotEmpty) {
-              onUpdate(Message.fromJson(newRecord));
-            }
-          },
-        )
-        .onPostgresChanges(
-          event: PostgresChangeEvent.update,
-          schema: 'public',
-          table: SupabaseConstants.conversationsTable,
-          filter: PostgresChangeFilter(
-            type: PostgresChangeFilterType.eq,
-            column: 'id',
-            value: conversationId,
-          ),
-          callback: (payload) {
-            final clearedStr = payload.newRecord['cleared_at'] as String?;
-            if (clearedStr != null) {
-              final dt = DateTime.tryParse(clearedStr);
-              if (dt != null) onChatCleared(dt);
+              var msg = Message.fromJson(newRecord);
+              if (msg.content != null &&
+                  EncryptionService.isEncrypted(msg.content)) {
+                final decrypted = await EncryptionService.instance.decryptText(
+                  msg.content!,
+                  conversationId,
+                );
+                msg = msg.copyWith(content: decrypted);
+              }
+              onUpdate(msg);
             }
           },
         )
@@ -232,11 +269,15 @@ class MessageRepository {
   Future<void> deleteMessage(String messageId) async {
     try {
       final now = DateTime.now().toUtc().toIso8601String();
-      await _client.from(SupabaseConstants.messagesTable).update({
-        'deleted_at': now,
-        'message_type': 'deleted',
-        'content': null,
-      }).eq('id', messageId).eq('sender_id', _currentUserId);
+      await _client
+          .from(SupabaseConstants.messagesTable)
+          .update({
+            'deleted_at': now,
+            'message_type': 'deleted',
+            'content': null,
+          })
+          .eq('id', messageId)
+          .eq('sender_id', _currentUserId);
     } catch (e, st) {
       throw ErrorHandler.handle(e, st);
     }
@@ -322,9 +363,10 @@ class MessageRepository {
   /// Mark a view-once message as opened.
   Future<void> markViewOnceOpened(String messageId) async {
     try {
-      await _client.rpc('mark_view_once_opened', params: {
-        'p_message_id': messageId,
-      });
+      await _client.rpc(
+        'mark_view_once_opened',
+        params: {'p_message_id': messageId},
+      );
     } catch (e, st) {
       throw ErrorHandler.handle(e, st);
     }

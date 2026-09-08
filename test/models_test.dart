@@ -146,22 +146,25 @@ void main() {
       expect(audio.mediaMeta?['duration_ms'], 5400);
     });
 
-    test('strips mediaData client-side from JSON when view-once was already viewed', () {
-      final now = DateTime.now().toIso8601String();
-      final json = {
-        'id': 'vo-2',
-        'conversation_id': 'c-100',
-        'sender_id': 'user-bob',
-        'message_type': 'view_once_image',
-        'media_data': 'sensitive_data_saved_in_database',
-        'created_at': now,
-        'viewed_at': now,
-      };
+    test(
+      'strips mediaData client-side from JSON when view-once was already viewed',
+      () {
+        final now = DateTime.now().toIso8601String();
+        final json = {
+          'id': 'vo-2',
+          'conversation_id': 'c-100',
+          'sender_id': 'user-bob',
+          'message_type': 'view_once_image',
+          'media_data': 'sensitive_data_saved_in_database',
+          'created_at': now,
+          'viewed_at': now,
+        };
 
-      final msg = Message.fromJson(json);
-      expect(msg.isViewOnce, isTrue);
-      expect(msg.isViewOnceOpened, isTrue);
-      expect(msg.mediaData, isNull);
-    });
+        final msg = Message.fromJson(json);
+        expect(msg.isViewOnce, isTrue);
+        expect(msg.isViewOnceOpened, isTrue);
+        expect(msg.mediaData, isNull);
+      },
+    );
   });
 }

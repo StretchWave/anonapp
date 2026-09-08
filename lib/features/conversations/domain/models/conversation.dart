@@ -76,8 +76,7 @@ class Conversation {
   int get hashCode => id.hashCode;
 
   @override
-  String toString() =>
-      'Conversation(id: $id, other: $otherMemberUsername)';
+  String toString() => 'Conversation(id: $id, other: $otherMemberUsername)';
 }
 
 /// Represents a conversation member row.

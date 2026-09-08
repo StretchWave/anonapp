@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -5,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/extensions.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../../messages/presentation/providers/notification_provider.dart';
 
 /// Screen displaying the user's anonymous profile, contact code, and settings.
 class SettingsScreen extends ConsumerWidget {
@@ -16,9 +18,7 @@ class SettingsScreen extends ConsumerWidget {
     final profileAsync = ref.watch(currentProfileProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Anonymous Identity & Settings'),
-      ),
+      appBar: AppBar(title: const Text('Anonymous Identity & Settings')),
       body: profileAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, _) => Center(
@@ -51,6 +51,12 @@ class SettingsScreen extends ConsumerWidget {
               // Security and Anonymity Info Card
               const _SecurityInfoCard(),
               const SizedBox(height: 16),
+
+              // Mobile Notifications Section (Android & iOS only)
+              if (!kIsWeb) ...[
+                const _NotificationsCard(),
+                const SizedBox(height: 16),
+              ],
 
               // Sign Out Section
               Card(
@@ -161,9 +167,7 @@ class _ProfileCard extends StatelessWidget {
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(
-          color: theme.colorScheme.outlineVariant.withAlpha(80),
-        ),
+        side: BorderSide(color: theme.colorScheme.outlineVariant.withAlpha(80)),
       ),
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -274,10 +278,7 @@ class _ContactCodeCard extends StatelessWidget {
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(
-          color: AppColors.primary,
-          width: 1.2,
-        ),
+        side: const BorderSide(color: AppColors.primary, width: 1.2),
       ),
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -314,9 +315,7 @@ class _ContactCodeCard extends StatelessWidget {
               decoration: BoxDecoration(
                 color: AppColors.primary.withAlpha(20),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: AppColors.primary.withAlpha(60),
-                ),
+                border: Border.all(color: AppColors.primary.withAlpha(60)),
               ),
               child: Row(
                 children: [
@@ -365,9 +364,7 @@ class _SecurityInfoCard extends StatelessWidget {
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(
-          color: theme.colorScheme.outlineVariant.withAlpha(80),
-        ),
+        side: BorderSide(color: theme.colorScheme.outlineVariant.withAlpha(80)),
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -408,8 +405,8 @@ class _SecurityInfoCard extends StatelessWidget {
             _buildBullet(
               context,
               Icons.visibility_off_outlined,
-              'Row-Level Security',
-              'Supabase PostgreSQL RLS policies restrict message and profile visibility strictly to conversation participants.',
+              'Participant-Only Access',
+              'Only conversation participants can view messages and chat history.',
             ),
           ],
         ),
@@ -427,11 +424,7 @@ class _SecurityInfoCard extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(
-          icon,
-          size: 16,
-          color: theme.colorScheme.onSurface.withAlpha(153),
-        ),
+        Icon(icon, size: 16, color: theme.colorScheme.onSurface.withAlpha(153)),
         const SizedBox(width: 10),
         Expanded(
           child: Column(
@@ -453,6 +446,69 @@ class _SecurityInfoCard extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _NotificationsCard extends ConsumerWidget {
+  const _NotificationsCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = context.theme;
+    final settings = ref.watch(notificationSettingsProvider);
+    final notifier = ref.read(notificationSettingsProvider.notifier);
+
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: theme.colorScheme.outlineVariant.withAlpha(80)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(
+                  Icons.notifications_outlined,
+                  color: AppColors.primary,
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Notifications',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            SwitchListTile.adaptive(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Message Notifications'),
+              subtitle: const Text('Alerts for incoming anonymous messages'),
+              value: settings.enabled,
+              onChanged: (val) => notifier.setEnabled(val),
+            ),
+            if (settings.enabled) ...[
+              const Divider(height: 1),
+              SwitchListTile.adaptive(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Discreet Mode'),
+                subtitle: const Text(
+                  'Hide sender username and message previews on notifications',
+                ),
+                value: settings.discreet,
+                onChanged: (val) => notifier.setDiscreet(val),
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 }

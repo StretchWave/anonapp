@@ -28,8 +28,9 @@ final currentProfileProvider = FutureProvider<UserProfile?>((ref) async {
 });
 
 /// Notifier that handles sign-up / sign-in / sign-out mutations.
-final authNotifierProvider =
-    AsyncNotifierProvider<AuthNotifier, UserProfile?>(AuthNotifier.new);
+final authNotifierProvider = AsyncNotifierProvider<AuthNotifier, UserProfile?>(
+  AuthNotifier.new,
+);
 
 class AuthNotifier extends AsyncNotifier<UserProfile?> {
   AuthRepository get _repo => ref.read(authRepositoryProvider);
@@ -69,8 +70,10 @@ class AuthNotifier extends AsyncNotifier<UserProfile?> {
 }
 
 /// Provider to check username availability.
-final usernameAvailabilityProvider =
-    FutureProvider.family<bool, String>((ref, username) async {
+final usernameAvailabilityProvider = FutureProvider.family<bool, String>((
+  ref,
+  username,
+) async {
   if (username.length < 3) return true; // Too short, don't check yet.
   final repo = ref.watch(authRepositoryProvider);
   final taken = await repo.isUsernameTaken(username);

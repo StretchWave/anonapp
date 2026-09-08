@@ -34,10 +34,7 @@ class AuthRepositoryImpl implements AuthRepository {
       }
 
       // 2. Create the auth user.
-      final response = await _auth.signUp(
-        email: email,
-        password: password,
-      );
+      final response = await _auth.signUp(email: email, password: password);
 
       final user = response.user;
       if (user == null) {
@@ -45,14 +42,9 @@ class AuthRepositoryImpl implements AuthRepository {
       }
 
       // 3. Insert the profile row.
-      final profileData = {
-        'id': user.id,
-        'username': username.toLowerCase(),
-      };
+      final profileData = {'id': user.id, 'username': username.toLowerCase()};
 
-      await _client
-          .from(SupabaseConstants.profilesTable)
-          .insert(profileData);
+      await _client.from(SupabaseConstants.profilesTable).insert(profileData);
 
       // 4. Fetch and return the created profile (includes DB-generated fields).
       final row = await _client
@@ -77,10 +69,7 @@ class AuthRepositoryImpl implements AuthRepository {
     try {
       final email = _toEmail(username);
 
-      await _auth.signInWithPassword(
-        email: email,
-        password: password,
-      );
+      await _auth.signInWithPassword(email: email, password: password);
 
       final userId = _auth.currentUser?.id;
       if (userId == null) {
@@ -139,9 +128,7 @@ class AuthRepositoryImpl implements AuthRepository {
   @override
   Stream<bool> authStateChanges() async* {
     yield _auth.currentSession != null;
-    yield* _auth.onAuthStateChange.map(
-      (event) => event.session != null,
-    );
+    yield* _auth.onAuthStateChange.map((event) => event.session != null);
   }
 
   @override

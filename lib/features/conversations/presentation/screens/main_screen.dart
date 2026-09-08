@@ -24,18 +24,13 @@ class _MainScreenState extends State<MainScreen> {
   @override
   Widget build(BuildContext context) {
     final pages = [
-      ConversationsScreen(
-        onNavigateToSearch: () => _onSelectTab(1),
-      ),
+      ConversationsScreen(onNavigateToSearch: () => _onSelectTab(1)),
       const UserSearchScreen(),
       const SettingsScreen(),
     ];
 
     return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: pages,
-      ),
+      body: IndexedStack(index: _currentIndex, children: pages),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
         onDestinationSelected: _onSelectTab,

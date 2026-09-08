@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/routing/app_router.dart';
 import 'core/theme/app_theme.dart';
+import 'features/messages/presentation/providers/notification_provider.dart';
 
 /// Root application widget.
 class AnonApp extends ConsumerWidget {
@@ -11,6 +12,9 @@ class AnonApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(routerProvider);
+
+    // Activates message notifications on Android and iOS (no-op on Web)
+    ref.watch(messageNotificationListenerProvider);
 
     return MaterialApp.router(
       title: 'AnonApp',

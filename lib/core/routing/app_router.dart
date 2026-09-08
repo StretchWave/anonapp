@@ -22,11 +22,15 @@ abstract final class AppRoutes {
   static const String search = '/search';
 }
 
+/// Global navigator key for programmatic deep-linking (e.g. from notification taps).
+final rootNavigatorKey = GlobalKey<NavigatorState>();
+
 /// GoRouter configuration with auth-aware redirects.
 final routerProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authStateProvider);
 
   return GoRouter(
+    navigatorKey: rootNavigatorKey,
     initialLocation: AppRoutes.splash,
     debugLogDiagnostics: true,
     redirect: (BuildContext context, GoRouterState state) {

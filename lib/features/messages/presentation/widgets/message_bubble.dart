@@ -32,8 +32,9 @@ class MessageBubble extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
       child: Row(
-        mainAxisAlignment:
-            isMine ? MainAxisAlignment.end : MainAxisAlignment.start,
+        mainAxisAlignment: isMine
+            ? MainAxisAlignment.end
+            : MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           if (!isMine) const SizedBox(width: 4),
@@ -53,8 +54,8 @@ class MessageBubble extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: isMine
                       ? (message.status == MessageStatus.failed
-                          ? AppColors.error.withAlpha(200)
-                          : AppColors.primary)
+                            ? AppColors.error.withAlpha(200)
+                            : AppColors.primary)
                       : theme.colorScheme.surfaceContainerHighest,
                   borderRadius: BorderRadius.only(
                     topLeft: const Radius.circular(18),
@@ -210,7 +211,9 @@ class MessageBubble extends StatelessWidget {
                 shape: BoxShape.circle,
                 color: opened
                     ? Colors.grey.withAlpha(50)
-                    : (isMine ? Colors.white24 : AppColors.accent.withAlpha(40)),
+                    : (isMine
+                          ? Colors.white24
+                          : AppColors.accent.withAlpha(40)),
               ),
               child: Icon(
                 opened ? Icons.done_all_rounded : Icons.looks_one_rounded,
@@ -239,7 +242,9 @@ class MessageBubble extends StatelessWidget {
                 Text(
                   opened
                       ? 'Expired'
-                      : (isMine ? 'Disappears after recipient views' : 'Tap to view once'),
+                      : (isMine
+                            ? 'Disappears after recipient views'
+                            : 'Tap to view once'),
                   style: TextStyle(
                     fontSize: 11,
                     color: isMine ? Colors.white70 : Colors.black54,
@@ -282,8 +287,10 @@ class MessageBubble extends StatelessWidget {
           Container(
             height: 120,
             alignment: Alignment.center,
-            child: Icon(Icons.image_not_supported_outlined,
-                color: isMine ? Colors.white60 : Colors.grey),
+            child: Icon(
+              Icons.image_not_supported_outlined,
+              color: isMine ? Colors.white60 : Colors.grey,
+            ),
           ),
         if (message.content != null && message.content!.isNotEmpty)
           Padding(
@@ -332,11 +339,7 @@ class MessageBubble extends StatelessWidget {
           ),
         );
       case MessageStatus.sent:
-        return const Icon(
-          Icons.check_rounded,
-          size: 13,
-          color: Colors.white70,
-        );
+        return const Icon(Icons.check_rounded, size: 13, color: Colors.white70);
       case MessageStatus.delivered:
         return const Icon(
           Icons.done_all_rounded,
@@ -369,10 +372,14 @@ class MessageBubble extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              leading:
-                  const Icon(Icons.delete_outline_rounded, color: AppColors.error),
-              title: const Text('Delete Message',
-                  style: TextStyle(color: AppColors.error)),
+              leading: const Icon(
+                Icons.delete_outline_rounded,
+                color: AppColors.error,
+              ),
+              title: const Text(
+                'Delete Message',
+                style: TextStyle(color: AppColors.error),
+              ),
               onTap: () {
                 Navigator.of(ctx).pop();
                 onDelete?.call();

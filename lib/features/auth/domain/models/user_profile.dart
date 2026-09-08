@@ -74,14 +74,8 @@ class UserProfile {
           lastSeen == other.lastSeen;
 
   @override
-  int get hashCode => Object.hash(
-        id,
-        username,
-        displayName,
-        contactCode,
-        createdAt,
-        lastSeen,
-      );
+  int get hashCode =>
+      Object.hash(id, username, displayName, contactCode, createdAt, lastSeen);
 
   @override
   String toString() => 'UserProfile(id: $id, username: $username)';

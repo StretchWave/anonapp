@@ -43,5 +43,5 @@ class PermissionException extends AppException {
 /// A feature that is not yet implemented.
 class NotImplementedException extends AppException {
   const NotImplementedException([String feature = 'This feature'])
-      : super('$feature is not yet implemented.');
+    : super('$feature is not yet implemented.');
 }

@@ -63,9 +63,9 @@ class ConversationRepository {
       final profiles = uniqueOtherIds.isEmpty
           ? <Map<String, dynamic>>[]
           : await _client
-              .from(SupabaseConstants.profilesTable)
-              .select('id, username')
-              .inFilter('id', uniqueOtherIds);
+                .from(SupabaseConstants.profilesTable)
+                .select('id, username')
+                .inFilter('id', uniqueOtherIds);
 
       final profileMap = {
         for (final p in profiles) p['id'] as String: p['username'] as String,
@@ -73,8 +73,7 @@ class ConversationRepository {
 
       // Build my membership map.
       final myMembershipMap = {
-        for (final m in myMemberships)
-          m['conversation_id'] as String: m,
+        for (final m in myMemberships) m['conversation_id'] as String: m,
       };
 
       // Assemble conversations.
@@ -87,8 +86,9 @@ class ConversationRepository {
         conversations.add(
           Conversation.fromJson(row).copyWith(
             otherMemberId: otherUserId,
-            otherMemberUsername:
-                otherUserId != null ? profileMap[otherUserId] : null,
+            otherMemberUsername: otherUserId != null
+                ? profileMap[otherUserId]
+                : null,
             isMuted: myMembership?['is_muted'] as bool? ?? false,
           ),
         );
@@ -108,10 +108,7 @@ class ConversationRepository {
 
       final result = await _client.rpc(
         'find_or_create_direct_conversation',
-        params: {
-          'p_user_id_1': userId,
-          'p_user_id_2': otherUserId,
-        },
+        params: {'p_user_id_1': userId, 'p_user_id_2': otherUserId},
       );
 
       return result as String;

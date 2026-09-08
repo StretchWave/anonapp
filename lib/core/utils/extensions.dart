@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:timeago/timeago.dart' as timeago;
 
+import 'app_toast.dart';
+
 /// Convenience extensions used across the app.
 
 extension StringX on String {
@@ -22,8 +24,18 @@ extension DateTimeX on DateTime {
   /// Date string: "Sep 7, 2026".
   String get shortDate {
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     return '${months[month - 1]} $day, $year';
   }
@@ -51,17 +63,13 @@ extension ContextX on BuildContext {
   /// Shortcut for `MediaQuery.sizeOf(context)`.
   Size get screenSize => MediaQuery.sizeOf(this);
 
-  /// Show a snackbar with a message.
+  /// Show a non-intrusive, translucent, click-through toast that doesn't interfere with typing.
   void showSnackBar(String message, {bool isError = false}) {
-    ScaffoldMessenger.of(this).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: isError
-            ? Theme.of(this).colorScheme.error
-            : Theme.of(this).colorScheme.primary,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      ),
-    );
+    showToast(message, isError: isError);
+  }
+
+  /// Show a floating, translucent, click-through toast at the top of the screen.
+  void showToast(String message, {bool isError = false}) {
+    AppToast.show(this, message, isError: isError);
   }
 }
