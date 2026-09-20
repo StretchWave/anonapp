@@ -27,12 +27,26 @@ class VoicePlayer extends StatefulWidget {
 class _VoicePlayerState extends State<VoicePlayer> {
   late final AudioPlayer _player;
   bool _isPlaying = false;
+  double _playbackRate = 1.0;
   Duration _position = Duration.zero;
   Duration _duration = Duration.zero;
   StreamSubscription<PlayerState>? _stateSubscription;
   StreamSubscription<Duration>? _posSubscription;
   StreamSubscription<Duration>? _durSubscription;
   Uint8List? _audioBytes;
+
+  void _cycleSpeed() {
+    setState(() {
+      if (_playbackRate == 1.0) {
+        _playbackRate = 1.5;
+      } else if (_playbackRate == 1.5) {
+        _playbackRate = 2.0;
+      } else {
+        _playbackRate = 1.0;
+      }
+    });
+    _player.setPlaybackRate(_playbackRate);
+  }
 
   @override
   void initState() {
@@ -209,6 +223,39 @@ class _VoicePlayerState extends State<VoicePlayer> {
                       ),
                       Row(
                         children: [
+                          InkWell(
+                            onTap: _cycleSpeed,
+                            borderRadius: BorderRadius.circular(6),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 5,
+                                vertical: 1.5,
+                              ),
+                              decoration: BoxDecoration(
+                                color: widget.isMine
+                                    ? Colors.white.withAlpha(45)
+                                    : AppColors.primary.withAlpha(35),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(
+                                  color: widget.isMine
+                                      ? Colors.white24
+                                      : AppColors.primaryLight.withAlpha(80),
+                                  width: 0.6,
+                                ),
+                              ),
+                              child: Text(
+                                '${_playbackRate == 1.0 ? "1" : _playbackRate}x',
+                                style: TextStyle(
+                                  fontSize: 9.5,
+                                  fontWeight: FontWeight.bold,
+                                  color: widget.isMine
+                                      ? Colors.white
+                                      : AppColors.primaryLight,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
                           Icon(
                             Icons.mic_rounded,
                             size: 12,

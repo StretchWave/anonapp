@@ -2,6 +2,8 @@ import 'package:supabase_flutter/supabase_flutter.dart' hide AuthException;
 
 import '../../../core/constants/supabase_constants.dart';
 import '../../../core/errors/error_handler.dart';
+import '../../../core/services/client_chat_deletion_service.dart';
+import '../../../core/services/encryption_service.dart';
 import '../domain/models/conversation.dart';
 
 /// Repository for conversation CRUD operations.
@@ -48,6 +50,38 @@ class ConversationRepository {
           .eq('user_id', userId)
           .inFilter('conversation_id', conversationIds);
 
+      // Fetch unread message counts for user's conversations
+      final unreadRows = await _client
+          .from(SupabaseConstants.messagesTable)
+          .select('conversation_id')
+          .inFilter('conversation_id', conversationIds)
+          .neq('sender_id', userId)
+          .isFilter('read_at', null)
+          .isFilter('deleted_at', null);
+
+      final unreadCounts = <String, int>{};
+      for (final r in unreadRows) {
+        final cId = r['conversation_id'] as String;
+        unreadCounts[cId] = (unreadCounts[cId] ?? 0) + 1;
+      }
+
+      // Fetch latest messages across these conversations for preview
+      final recentMessages = await _client
+          .from(SupabaseConstants.messagesTable)
+          .select('conversation_id, content, message_type, created_at, sender_id')
+          .inFilter('conversation_id', conversationIds)
+          .isFilter('deleted_at', null)
+          .order('created_at', ascending: false)
+          .limit(200);
+
+      final lastMessageMap = <String, Map<String, dynamic>>{};
+      for (final msg in recentMessages) {
+        final cId = msg['conversation_id'] as String;
+        if (!lastMessageMap.containsKey(cId)) {
+          lastMessageMap[cId] = msg;
+        }
+      }
+
       // Build a map of conversationId → other user IDs.
       final otherUserIds = <String, String>{};
       for (final member in allMembers) {
@@ -64,11 +98,16 @@ class ConversationRepository {
           ? <Map<String, dynamic>>[]
           : await _client
                 .from(SupabaseConstants.profilesTable)
-                .select('id, username')
+                .select('id, username, last_seen')
                 .inFilter('id', uniqueOtherIds);
 
       final profileMap = {
         for (final p in profiles) p['id'] as String: p['username'] as String,
+      };
+      final lastSeenMap = <String, DateTime?>{
+        for (final p in profiles)
+          if (p['last_seen'] != null)
+            p['id'] as String: DateTime.tryParse(p['last_seen'] as String),
       };
 
       // Build my membership map.
@@ -82,6 +121,36 @@ class ConversationRepository {
         final convId = row['id'] as String;
         final otherUserId = otherUserIds[convId];
         final myMembership = myMembershipMap[convId];
+        final lastMsg = lastMessageMap[convId];
+
+        String? lastContent;
+        if (lastMsg != null) {
+          final msgType = lastMsg['message_type'] as String? ?? 'text';
+          switch (msgType) {
+            case 'image':
+              lastContent = '📷 Photo';
+              break;
+            case 'view_once_image':
+              lastContent = '🔒 Photo (View once)';
+              break;
+            case 'audio':
+              lastContent = '🎤 Voice message';
+              break;
+            default:
+              final rawContent = lastMsg['content'] as String?;
+              if (rawContent != null && EncryptionService.isEncrypted(rawContent)) {
+                try {
+                  lastContent = await EncryptionService.instance
+                      .decryptText(rawContent, convId);
+                } catch (_) {
+                  lastContent = 'Encrypted message';
+                }
+              } else {
+                lastContent = rawContent;
+              }
+              break;
+          }
+        }
 
         conversations.add(
           Conversation.fromJson(row).copyWith(
@@ -89,15 +158,59 @@ class ConversationRepository {
             otherMemberUsername: otherUserId != null
                 ? profileMap[otherUserId]
                 : null,
+            otherMemberLastSeen: otherUserId != null
+                ? lastSeenMap[otherUserId]
+                : null,
             isMuted: myMembership?['is_muted'] as bool? ?? false,
+            unreadCount: unreadCounts[convId] ?? 0,
+            lastMessageContent: lastContent,
+            lastMessageAt: lastMsg != null && lastMsg['created_at'] != null
+                ? DateTime.tryParse(lastMsg['created_at'] as String)
+                : null,
+            lastMessageSenderId: lastMsg?['sender_id'] as String?,
           ),
         );
+      }
+
+      // Filter out conversations deleted client-sided by the current user
+      // unless a newer message has arrived after the client deletion timestamp.
+      final deletedMap = await ClientChatDeletionService.instance
+          .getDeletedConversations(userId);
+
+      if (deletedMap.isNotEmpty) {
+        conversations.removeWhere((conv) {
+          final deletedAt = deletedMap[conv.id];
+          if (deletedAt == null) return false;
+
+          final lastAt = conv.lastMessageAt ?? conv.updatedAt;
+          return !lastAt.toUtc().isAfter(deletedAt.toUtc());
+        });
       }
 
       return conversations;
     } catch (e, st) {
       throw ErrorHandler.handle(e, st);
     }
+  }
+
+  /// Deletes a conversation client-sided for the current user only.
+  Future<void> deleteConversationClientSided(String conversationId) async {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) return;
+    await ClientChatDeletionService.instance.markConversationDeleted(
+      userId: userId,
+      conversationId: conversationId,
+    );
+  }
+
+  /// Restores a conversation that was previously deleted client-sided.
+  Future<void> restoreConversationClientSided(String conversationId) async {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) return;
+    await ClientChatDeletionService.instance.restoreConversation(
+      userId: userId,
+      conversationId: conversationId,
+    );
   }
 
   /// Create or find a 1:1 conversation with another user.

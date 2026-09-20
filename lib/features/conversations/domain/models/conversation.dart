@@ -7,6 +7,7 @@ class Conversation {
     this.disappearingMessagesDuration,
     this.otherMemberUsername,
     this.otherMemberId,
+    this.otherMemberLastSeen,
     this.lastMessageContent,
     this.lastMessageAt,
     this.lastMessageSenderId,
@@ -30,6 +31,7 @@ class Conversation {
   final String? disappearingMessagesDuration;
   final String? otherMemberUsername;
   final String? otherMemberId;
+  final DateTime? otherMemberLastSeen;
   final String? lastMessageContent;
   final DateTime? lastMessageAt;
   final String? lastMessageSenderId;
@@ -43,6 +45,7 @@ class Conversation {
     String? disappearingMessagesDuration,
     String? otherMemberUsername,
     String? otherMemberId,
+    DateTime? otherMemberLastSeen,
     String? lastMessageContent,
     DateTime? lastMessageAt,
     String? lastMessageSenderId,
@@ -57,6 +60,7 @@ class Conversation {
           disappearingMessagesDuration ?? this.disappearingMessagesDuration,
       otherMemberUsername: otherMemberUsername ?? this.otherMemberUsername,
       otherMemberId: otherMemberId ?? this.otherMemberId,
+      otherMemberLastSeen: otherMemberLastSeen ?? this.otherMemberLastSeen,
       lastMessageContent: lastMessageContent ?? this.lastMessageContent,
       lastMessageAt: lastMessageAt ?? this.lastMessageAt,
       lastMessageSenderId: lastMessageSenderId ?? this.lastMessageSenderId,

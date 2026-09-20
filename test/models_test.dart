@@ -177,7 +177,7 @@ void main() {
     });
 
     test(
-      'strips mediaData client-side from JSON when view-once was already viewed',
+      'retains mediaData client-side from JSON when view-once was already viewed without expiration',
       () {
         final now = DateTime.now().toIso8601String();
         final json = {
@@ -193,8 +193,79 @@ void main() {
         final msg = Message.fromJson(json);
         expect(msg.isViewOnce, isTrue);
         expect(msg.isViewOnceOpened, isTrue);
-        expect(msg.mediaData, isNull);
+        expect(msg.mediaData, equals('sensitive_data_saved_in_database'));
       },
     );
+
+    test(
+      'clears mediaData when view-once message is marked opened to remove recipient access',
+      () {
+        final now = DateTime.now().toUtc();
+        final msg = Message(
+          id: 'vo-access-test',
+          conversationId: 'c-100',
+          senderId: 'user-bob',
+          messageType: MessageType.viewOnceImage,
+          mediaData: 'base64_photo_bytes',
+          createdAt: now,
+        );
+
+        expect(msg.isViewOnce, isTrue);
+        expect(msg.isViewOnceOpened, isFalse);
+        expect(msg.mediaData, equals('base64_photo_bytes'));
+        expect(msg.displayText, equals('Photo (View once)'));
+
+        // When viewed, access is removed: mediaData is cleared from memory and status becomes opened
+        final viewed = msg.copyWith(viewedAt: now, clearMediaData: true);
+        expect(viewed.isViewOnceOpened, isTrue);
+        expect(viewed.mediaData, isNull);
+        expect(viewed.displayText, equals('Photo (Opened)'));
+      },
+    );
+    test('handles document messages correctly', () {
+      final now = DateTime.now();
+
+      // Explicit document message type
+      final doc1 = Message(
+        id: 'doc-1',
+        conversationId: 'c-1',
+        senderId: 'u-1',
+        messageType: MessageType.document,
+        mediaData: 'base64docbytes',
+        mediaMeta: {
+          'is_document': true,
+          'file_name': 'project_specs.pdf',
+          'file_size': 1048576,
+          'mime_type': 'pdf',
+        },
+        createdAt: now,
+      );
+      expect(doc1.isDocument, isTrue);
+      expect(doc1.documentFileName, 'project_specs.pdf');
+      expect(doc1.documentFileSize, 1048576);
+      expect(doc1.displayText, '📄 project_specs.pdf');
+
+      // Defensive document message stored as image with is_document in media_meta
+      final json = {
+        'id': 'doc-2',
+        'conversation_id': 'c-1',
+        'sender_id': 'u-2',
+        'message_type': 'image',
+        'media_data': 'base64docbytes',
+        'media_meta': {
+          'is_document': true,
+          'file_name': 'audit_report.docx',
+          'file_size': 204800,
+        },
+        'created_at': now.toIso8601String(),
+      };
+      final doc2 = Message.fromJson(json);
+      expect(doc2.isDocument, isTrue);
+      expect(doc2.messageType, MessageType.document);
+      expect(doc2.documentFileName, 'audit_report.docx');
+      expect(doc2.documentFileSize, 204800);
+      expect(doc2.displayText, '📄 audit_report.docx');
+    });
+
   });
 }

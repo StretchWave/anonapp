@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/services/app_control_service.dart';
+import '../../../../core/services/presence/presence_provider.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/extensions.dart';
 import '../../../../core/widgets/app_button.dart';
@@ -47,8 +49,26 @@ class _ConversationsScreenState extends ConsumerState<ConversationsScreen> {
   @override
   Widget build(BuildContext context) {
     final conversationsAsync = ref.watch(conversationsProvider);
+    final locallyReadIds = ref.watch(locallyReadConversationIdsProvider);
+    final rawConversations = conversationsAsync.valueOrNull ?? [];
+    final allConversations = rawConversations.map((c) {
+      if (locallyReadIds.contains(c.id)) {
+        return c.copyWith(unreadCount: 0);
+      }
+      return c;
+    }).toList();
+    final totalUnread = allConversations.fold<int>(
+      0,
+      (sum, c) => sum + c.unreadCount,
+    );
 
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        await AppControlService.minimizeApp();
+      },
+      child: Scaffold(
       appBar: AppBar(
         titleSpacing: 20,
         title: Row(
@@ -57,14 +77,17 @@ class _ConversationsScreenState extends ConsumerState<ConversationsScreen> {
               width: 34,
               height: 34,
               decoration: BoxDecoration(
-                gradient: AppColors.primaryGradient,
                 borderRadius: BorderRadius.circular(10),
                 boxShadow: AppColors.primaryGlow,
               ),
-              child: const Icon(
-                Icons.shield_rounded,
-                size: 20,
-                color: Colors.white,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: Image.asset(
+                  'logo.png',
+                  width: 34,
+                  height: 34,
+                  fit: BoxFit.cover,
+                ),
               ),
             ),
             const SizedBox(width: 12),
@@ -76,6 +99,39 @@ class _ConversationsScreenState extends ConsumerState<ConversationsScreen> {
                 letterSpacing: -0.5,
               ),
             ),
+            if (totalUnread > 0) ...[
+              const SizedBox(width: 10),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 3,
+                ),
+                decoration: BoxDecoration(
+                  gradient: AppColors.primaryGradient,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: AppColors.primaryGlow,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.mark_chat_unread_rounded,
+                      size: 13,
+                      color: Colors.white,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      '$totalUnread',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ],
         ),
         actions: [
@@ -104,7 +160,10 @@ class _ConversationsScreenState extends ConsumerState<ConversationsScreen> {
               children: [
                 _buildFilterPill('All', ChatFilter.all),
                 const SizedBox(width: 8),
-                _buildFilterPill('Unread', ChatFilter.unread),
+                _buildFilterPill(
+                  totalUnread > 0 ? 'Unread ($totalUnread)' : 'Unread',
+                  ChatFilter.unread,
+                ),
                 const SizedBox(width: 8),
                 _buildFilterPill('Active', ChatFilter.active),
               ],
@@ -147,9 +206,14 @@ class _ConversationsScreenState extends ConsumerState<ConversationsScreen> {
                       return _ConversationTile(
                         conversation: conv,
                         index: index,
-                        onTap: () {
+                        onTap: () async {
                           final username = conv.otherMemberUsername ?? '';
-                          context.push('/chat/${conv.id}?username=$username');
+                          final otherUid = conv.otherMemberId ?? '';
+                          ref
+                              .read(locallyReadConversationIdsProvider.notifier)
+                              .update((s) => {...s, conv.id});
+                          await context.push('/chat/${conv.id}?username=$username&otherUserId=$otherUid');
+                          ref.invalidate(conversationsProvider);
                         },
                         onToggleMute: () async {
                           final repo = ref.read(conversationRepositoryProvider);
@@ -165,6 +229,7 @@ class _ConversationsScreenState extends ConsumerState<ConversationsScreen> {
           ),
         ],
       ),
+    ),
     );
   }
 
@@ -246,7 +311,7 @@ class _ConversationsScreenState extends ConsumerState<ConversationsScreen> {
 }
 
 /// Polished conversation list item tile.
-class _ConversationTile extends StatelessWidget {
+class _ConversationTile extends ConsumerWidget {
   const _ConversationTile({
     required this.conversation,
     required this.index,
@@ -260,10 +325,12 @@ class _ConversationTile extends StatelessWidget {
   final VoidCallback onToggleMute;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final username = conversation.otherMemberUsername ?? 'Anonymous';
     final initial = username.isNotEmpty ? username[0].toUpperCase() : '?';
     final hasUnread = conversation.unreadCount > 0;
+    final isOtherOnline = conversation.otherMemberId != null &&
+        ref.watch(isUserOnlineProvider(conversation.otherMemberId));
 
     return TweenAnimationBuilder<double>(
       tween: Tween<double>(begin: 0.0, end: 1.0),
@@ -294,6 +361,7 @@ class _ConversationTile extends StatelessWidget {
           color: Colors.transparent,
           child: InkWell(
             onTap: onTap,
+            onLongPress: () => _confirmDeleteChat(context, ref),
             borderRadius: BorderRadius.circular(16),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -340,11 +408,24 @@ class _ConversationTile extends StatelessWidget {
                           height: 12,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: AppColors.online,
+                            color: isOtherOnline
+                                ? AppColors.online
+                                : AppColors.offline,
                             border: Border.all(
                               color: AppColors.surfaceDark,
                               width: 2,
                             ),
+                            boxShadow: isOtherOnline
+                                ? [
+                                    BoxShadow(
+                                      color: AppColors.online.withValues(
+                                        alpha: 0.6,
+                                      ),
+                                      blurRadius: 5,
+                                      spreadRadius: 1,
+                                    ),
+                                  ]
+                                : null,
                           ),
                         ),
                       ),
@@ -462,7 +543,11 @@ class _ConversationTile extends StatelessWidget {
                       ),
                     ),
                     onSelected: (value) {
-                      if (value == 'mute') onToggleMute();
+                      if (value == 'mute') {
+                        onToggleMute();
+                      } else if (value == 'delete') {
+                        _confirmDeleteChat(context, ref);
+                      }
                     },
                     itemBuilder: (context) => [
                       PopupMenuItem(
@@ -487,6 +572,27 @@ class _ConversationTile extends StatelessWidget {
                           ],
                         ),
                       ),
+                      const PopupMenuItem(
+                        value: 'delete',
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.delete_outline_rounded,
+                              size: 18,
+                              color: AppColors.error,
+                            ),
+                            SizedBox(width: 10),
+                            Text(
+                              'Delete Chat',
+                              style: TextStyle(
+                                color: AppColors.error,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
                 ],
@@ -494,6 +600,56 @@ class _ConversationTile extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  void _confirmDeleteChat(BuildContext context, WidgetRef ref) {
+    final username = conversation.otherMemberUsername ?? 'Anonymous';
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.delete_forever_rounded, color: AppColors.error, size: 22),
+            SizedBox(width: 10),
+            Text('Delete Chat?'),
+          ],
+        ),
+        content: Text(
+          'Delete chat with @$username from your device?\n\n'
+          'This chat and its past messages will be removed from your screen only. '
+          'The other person will still have their copy.',
+          style: const TextStyle(
+            fontSize: 13.5,
+            height: 1.4,
+            color: AppColors.textSecondaryDark,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+            onPressed: () async {
+              Navigator.of(ctx).pop();
+              ref
+                  .read(locallyDeletedConversationIdsProvider.notifier)
+                  .update((s) => {...s, conversation.id});
+              final repo = ref.read(conversationRepositoryProvider);
+              await repo.deleteConversationClientSided(conversation.id);
+              ref.invalidate(conversationsProvider);
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Chat deleted for you.')),
+                );
+              }
+            },
+            child: const Text('Delete'),
+          ),
+        ],
       ),
     );
   }

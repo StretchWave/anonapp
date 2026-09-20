@@ -101,14 +101,17 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                   width: 90,
                   height: 90,
                   decoration: BoxDecoration(
-                    gradient: AppColors.primaryGradient,
                     borderRadius: BorderRadius.circular(26),
                     boxShadow: AppColors.primaryGlow,
                   ),
-                  child: const Icon(
-                    Icons.shield_rounded,
-                    color: Colors.white,
-                    size: 48,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(26),
+                    child: Image.asset(
+                      'logo.png',
+                      width: 90,
+                      height: 90,
+                      fit: BoxFit.cover,
+                    ),
                   ),
                 ),
               ),

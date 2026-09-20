@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/errors/app_exception.dart';
+import '../../../../core/services/presence/presence_provider.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/extensions.dart';
 import '../../../../core/widgets/app_button.dart';
@@ -130,7 +131,9 @@ class _UserSearchScreenState extends ConsumerState<UserSearchScreen>
       ref.invalidate(conversationsProvider);
 
       if (mounted) {
-        await context.push('/chat/$convId?username=$otherUsername');
+        await context.push(
+          '/chat/$convId?username=$otherUsername&otherUserId=$otherUserId',
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -597,6 +600,8 @@ class _UserSearchScreenState extends ConsumerState<UserSearchScreen>
                             ? user.username[0].toUpperCase()
                             : '?';
 
+                        final isUserOnline = ref.watch(isUserOnlineProvider(user.id));
+
                         return AppCard(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 14,
@@ -604,18 +609,48 @@ class _UserSearchScreenState extends ConsumerState<UserSearchScreen>
                           ),
                           child: Row(
                             children: [
-                              CircleAvatar(
-                                radius: 22,
-                                backgroundColor: AppColors.primary.withAlpha(
-                                  40,
-                                ),
-                                child: Text(
-                                  initial,
-                                  style: const TextStyle(
-                                    color: AppColors.primaryLight,
-                                    fontWeight: FontWeight.bold,
+                              Stack(
+                                children: [
+                                  CircleAvatar(
+                                    radius: 22,
+                                    backgroundColor: AppColors.primary
+                                        .withAlpha(40),
+                                    child: Text(
+                                      initial,
+                                      style: const TextStyle(
+                                        color: AppColors.primaryLight,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
                                   ),
-                                ),
+                                  Positioned(
+                                    right: 0,
+                                    bottom: 0,
+                                    child: Container(
+                                      width: 10,
+                                      height: 10,
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        color: isUserOnline
+                                            ? AppColors.online
+                                            : AppColors.offline,
+                                        border: Border.all(
+                                          color: AppColors.surfaceDark,
+                                          width: 2,
+                                        ),
+                                        boxShadow: isUserOnline
+                                            ? [
+                                                BoxShadow(
+                                                  color: AppColors.online
+                                                      .withValues(alpha: 0.6),
+                                                  blurRadius: 4,
+                                                ),
+                                              ]
+                                            : null,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                               const SizedBox(width: 14),
                               Expanded(

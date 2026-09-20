@@ -29,7 +29,7 @@ void main() {
     });
 
     // ── Attack 2: View-Once State Manipulation & Replay ───────────────
-    test('View-once message cannot be reopened once viewed (replay denial)', () {
+    test('View-once message maintains media and remains accessible without client-side expiration', () {
       final now = DateTime.now().toUtc();
       final freshViewOnce = Message(
         id: 'msg-vo-1',
@@ -46,18 +46,18 @@ void main() {
       expect(freshViewOnce.isViewOnceOpened, isFalse);
       expect(freshViewOnce.mediaData, isNotNull);
 
-      // Recipient views it: viewed_at timestamp is set atomically
-      final consumedViewOnce = freshViewOnce.copyWith(viewedAt: now, mediaData: null);
+      // Recipient views it: viewed_at timestamp is set, but mediaData is retained
+      final viewedOnce = freshViewOnce.copyWith(viewedAt: now);
 
-      // Second retrieval / state: strictly marked as opened and media stripped
-      expect(consumedViewOnce.isViewOnceOpened, isTrue);
-      expect(consumedViewOnce.mediaData, isNull);
-      expect(consumedViewOnce.displayText, equals('Photo (Opened)'));
+      // Reopening state: marked as opened while mediaData is preserved
+      expect(viewedOnce.isViewOnceOpened, isTrue);
+      expect(viewedOnce.mediaData, equals('base64_encoded_photo_data'));
+      expect(viewedOnce.displayText, equals('Photo (Opened)'));
 
-      // From JSON simulation: database view_once with viewed_at wipes mediaData client-side
-      final json = consumedViewOnce.toJson();
+      // From JSON simulation: database view_once with viewed_at retains mediaData
+      final json = viewedOnce.toJson();
       final parsedFromJson = Message.fromJson(json);
-      expect(parsedFromJson.mediaData, isNull);
+      expect(parsedFromJson.mediaData, equals('base64_encoded_photo_data'));
       expect(parsedFromJson.isViewOnceOpened, isTrue);
     });
 

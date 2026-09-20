@@ -1,5 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
+
+import 'package:file_picker/file_picker.dart';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -11,24 +14,39 @@ import 'package:record/record.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/extensions.dart';
 import '../../../../core/utils/file_cleanup.dart';
+import '../providers/message_provider.dart';
 import 'attachment_sheet.dart';
 import 'image_preview_dialog.dart';
 
 /// Modern chat input bar supporting multiline text (Enter to send),
-/// rich attachment sheet (gallery, camera, view-once), and voice recording.
+/// rich attachment sheet (gallery, camera, view-once), voice recording,
+/// swipe-to-reply preview banner, and real-time typing indicators.
 class ChatInputBar extends StatefulWidget {
   const ChatInputBar({
     super.key,
     required this.onSend,
     this.onSendImage,
     this.onSendVoice,
+    this.onSendDocument,
     this.enabled = true,
+    this.replyMessage,
+    this.onCancelReply,
+    this.onTyping,
   });
 
   final ValueChanged<String> onSend;
   final OnSendImageCallback? onSendImage;
   final void Function(String base64Audio, int durationMs)? onSendVoice;
+  final void Function(
+    String base64Doc,
+    String fileName,
+    int fileSize,
+    String? extension,
+  )? onSendDocument;
   final bool enabled;
+  final ReplyMessageInfo? replyMessage;
+  final VoidCallback? onCancelReply;
+  final VoidCallback? onTyping;
 
   @override
   State<ChatInputBar> createState() => _ChatInputBarState();
@@ -61,6 +79,9 @@ class _ChatInputBarState extends State<ChatInputBar>
       final canSend = _controller.text.trim().isNotEmpty;
       if (canSend != _canSend) {
         setState(() => _canSend = canSend);
+      }
+      if (canSend) {
+        widget.onTyping?.call();
       }
     });
   }
@@ -103,8 +124,8 @@ class _ChatInputBarState extends State<ChatInputBar>
           case AttachmentType.camera:
             _pickImage(ImageSource.camera, defaultViewOnce: false);
             break;
-          case AttachmentType.viewOnce:
-            _pickImage(ImageSource.gallery, defaultViewOnce: true);
+          case AttachmentType.document:
+            _pickDocument();
             break;
           case AttachmentType.voice:
             _startRecording();
@@ -114,6 +135,53 @@ class _ChatInputBarState extends State<ChatInputBar>
     );
   }
 
+  Future<void> _pickDocument() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.any,
+        withData: true,
+      );
+      if (result == null || result.files.isEmpty || !mounted) return;
+
+      final file = result.files.first;
+      Uint8List? bytes = file.bytes;
+      if (bytes == null && file.path != null) {
+        final ioFile = File(file.path!);
+        if (await ioFile.exists()) {
+          bytes = await ioFile.readAsBytes();
+        }
+      }
+
+      if (bytes == null || bytes.isEmpty) {
+        if (mounted) {
+          context.showSnackBar('Unable to read selected file.', isError: true);
+        }
+        return;
+      }
+
+      // 15 MB limit for document transfer
+      if (bytes.length > 15 * 1024 * 1024) {
+        if (mounted) {
+          context.showSnackBar('File size exceeds 15 MB limit.', isError: true);
+        }
+        return;
+      }
+
+      final base64Doc = base64Encode(bytes);
+      widget.onSendDocument?.call(
+        base64Doc,
+        file.name,
+        file.size,
+        file.extension,
+      );
+    } catch (e) {
+      debugPrint('[ChatInputBar] Error picking document: $e');
+      if (mounted) {
+        context.showSnackBar('Could not pick document: $e', isError: true);
+      }
+    }
+  }
+
   Future<void> _pickImage(
     ImageSource source, {
     required bool defaultViewOnce,
@@ -121,7 +189,9 @@ class _ChatInputBarState extends State<ChatInputBar>
     try {
       final xFile = await _imagePicker.pickImage(
         source: source,
-        imageQuality: 80,
+        maxWidth: 1600,
+        maxHeight: 1600,
+        imageQuality: 85,
       );
       if (xFile == null || !mounted) return;
 
@@ -282,7 +352,79 @@ class _ChatInputBarState extends State<ChatInputBar>
           top: BorderSide(color: AppColors.surfaceBorder, width: 0.8),
         ),
       ),
-      child: _isRecording ? _buildRecordingBar() : _buildInputBar(),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (widget.replyMessage != null) _buildReplyPreview(),
+          _isRecording ? _buildRecordingBar() : _buildInputBar(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReplyPreview() {
+    final reply = widget.replyMessage!;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceVariantDark,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.surfaceBorder, width: 0.8),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 3.5,
+            height: 32,
+            decoration: BoxDecoration(
+              color: AppColors.primaryLight,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(width: 8),
+          const Icon(
+            Icons.reply_rounded,
+            size: 18,
+            color: AppColors.primaryLight,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  reply.senderName,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.primaryLight,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  reply.content,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: AppColors.textSecondaryDark,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.close_rounded, size: 18),
+            color: AppColors.textMutedDark,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+            splashRadius: 16,
+            onPressed: widget.onCancelReply,
+          ),
+        ],
+      ),
     );
   }
 

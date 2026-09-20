@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -24,6 +26,7 @@ class MessageBubble extends ConsumerWidget {
     this.otherUsername,
     this.onDelete,
     this.onViewOnceOpened,
+    this.onReply,
   });
 
   final Message message;
@@ -32,12 +35,13 @@ class MessageBubble extends ConsumerWidget {
   final String? otherUsername;
   final VoidCallback? onDelete;
   final VoidCallback? onViewOnceOpened;
+  final void Function(Message)? onReply;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = context.theme;
 
-    return Padding(
+    Widget bubbleWidget = Padding(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 3.5),
       child: Row(
         mainAxisAlignment: isMine
@@ -92,6 +96,10 @@ class MessageBubble extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    if (message.hasReply) ...[
+                      _buildQuotedReply(context),
+                      const SizedBox(height: 6),
+                    ],
                     _buildContent(context, theme),
                     const SizedBox(height: 3),
                     Padding(
@@ -126,6 +134,72 @@ class MessageBubble extends ConsumerWidget {
             ),
           ),
           if (isMine) const SizedBox(width: 4),
+        ],
+      ),
+    );
+
+    if (!message.isDeleted && onReply != null) {
+      bubbleWidget = Dismissible(
+        key: Key('reply_${message.id}'),
+        direction: DismissDirection.startToEnd,
+        confirmDismiss: (direction) async {
+          await HapticFeedback.lightImpact();
+          onReply?.call(message);
+          return false;
+        },
+        background: Container(
+          alignment: Alignment.centerLeft,
+          padding: const EdgeInsets.only(left: 20),
+          child: const Icon(
+            Icons.reply_rounded,
+            color: AppColors.primaryLight,
+            size: 24,
+          ),
+        ),
+        child: bubbleWidget,
+      );
+    }
+
+    return bubbleWidget;
+  }
+
+  Widget _buildQuotedReply(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: isMine
+            ? Colors.black.withValues(alpha: 0.22)
+            : Colors.white.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(8),
+        border: Border(
+          left: BorderSide(
+            color: isMine ? Colors.white70 : AppColors.primaryLight,
+            width: 3.5,
+          ),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            message.replyToSender ?? (isMine ? 'You' : 'Anon'),
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              color: isMine ? Colors.white : AppColors.primaryLight,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            message.replyToContent ?? '',
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 12,
+              color: isMine ? Colors.white70 : AppColors.textSecondaryDark,
+            ),
+          ),
         ],
       ),
     );
@@ -194,25 +268,43 @@ class MessageBubble extends ConsumerWidget {
       final wasViewed = message.isViewOnceOpened;
       return GestureDetector(
         onTap: () {
-          if (!wasViewed && message.mediaData != null) {
-            ViewOnceDialog.show(
-              context,
-              message: message,
-              onClosed: () => onViewOnceOpened?.call(),
+          if (wasViewed) {
+            context.showSnackBar(
+              'This photo was set to view once and has already been opened.',
             );
+            return;
           }
+          if (isMine) {
+            context.showSnackBar(
+              'View-once photo sent. Waiting for recipient to open.',
+            );
+            return;
+          }
+          ViewOnceDialog.show(
+            context,
+            message: message,
+            onClosed: () => onViewOnceOpened?.call(),
+          );
         },
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           decoration: BoxDecoration(
             color: wasViewed
-                ? AppColors.surfaceDark
-                : AppColors.primary.withValues(alpha: 0.25),
+                ? (isMine
+                    ? Colors.black.withValues(alpha: 0.15)
+                    : AppColors.surfaceVariantDark.withValues(alpha: 0.5))
+                : (isMine
+                    ? AppColors.accent.withValues(alpha: 0.2)
+                    : AppColors.primary.withValues(alpha: 0.25)),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: wasViewed
-                  ? AppColors.surfaceBorder
-                  : AppColors.primaryLight.withValues(alpha: 0.5),
+                  ? (isMine
+                      ? Colors.white.withValues(alpha: 0.15)
+                      : AppColors.surfaceBorder)
+                  : (isMine
+                      ? AppColors.accent.withValues(alpha: 0.5)
+                      : AppColors.primaryLight.withValues(alpha: 0.5)),
               width: 1,
             ),
           ),
@@ -221,11 +313,13 @@ class MessageBubble extends ConsumerWidget {
             children: [
               Icon(
                 wasViewed
-                    ? Icons.visibility_off_rounded
-                    : Icons.local_fire_department_rounded,
+                    ? Icons.lock_clock_outlined
+                    : (isMine
+                        ? Icons.looks_one_rounded
+                        : Icons.local_fire_department_rounded),
                 color: wasViewed
-                    ? AppColors.textMutedDark
-                    : AppColors.primaryLight,
+                    ? (isMine ? Colors.white54 : AppColors.textMutedDark)
+                    : (isMine ? AppColors.accent : AppColors.primaryLight),
                 size: 22,
               ),
               const SizedBox(width: 10),
@@ -233,23 +327,29 @@ class MessageBubble extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    wasViewed ? 'Photo opened' : 'View-Once Photo',
+                    wasViewed ? 'Photo (Opened)' : 'View-Once Photo',
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 13,
                       color: wasViewed
-                          ? AppColors.textMutedDark
+                          ? (isMine ? Colors.white70 : AppColors.textMutedDark)
                           : AppColors.textPrimaryDark,
                     ),
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    wasViewed ? 'Expired' : 'Tap to open once',
+                    wasViewed
+                        ? (isMine
+                            ? 'Opened by recipient'
+                            : 'Removed • Already viewed')
+                        : (isMine ? 'Sent • 1 View' : 'Tap to open'),
                     style: TextStyle(
                       fontSize: 11,
                       color: wasViewed
-                          ? AppColors.textMutedDark
-                          : AppColors.primaryLight,
+                          ? (isMine ? Colors.white38 : AppColors.textMutedDark)
+                          : (isMine
+                              ? AppColors.accent
+                              : AppColors.primaryLight),
                     ),
                   ),
                 ],
@@ -258,6 +358,11 @@ class MessageBubble extends ConsumerWidget {
           ),
         ),
       );
+    }
+
+    // Document Message
+    if (message.isDocument) {
+      return _buildDocumentContent(context);
     }
 
     // Regular Image Message
@@ -272,6 +377,165 @@ class MessageBubble extends ConsumerWidget {
         fontSize: 14.5,
         height: 1.35,
         color: isMine ? Colors.white : AppColors.textPrimaryDark,
+      ),
+    );
+  }
+
+  Future<void> _handleDocumentTap(BuildContext context) async {
+    if (message.mediaData == null || message.mediaData!.isEmpty) {
+      context.showSnackBar('Document content is unavailable.', isError: true);
+      return;
+    }
+
+    try {
+      final fileName = message.documentFileName ?? 'document_${message.id.substring(0, 8)}';
+      var clean = message.mediaData!.trim();
+      if (clean.contains(',')) clean = clean.split(',').last;
+      final bytes = base64Decode(clean);
+
+      final tempDir = await getTemporaryDirectory();
+      final targetFile = File('${tempDir.path}/$fileName');
+      await targetFile.writeAsBytes(bytes);
+
+      if (context.mounted) {
+        context.showSnackBar('Saved to ${targetFile.path}');
+      }
+    } catch (e) {
+      if (context.mounted) {
+        context.showSnackBar('Error opening document: $e', isError: true);
+      }
+    }
+  }
+
+  String _formatFileSize(int? bytes) {
+    if (bytes == null || bytes <= 0) return 'Document';
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
+
+  IconData _getFileIcon(String? fileName) {
+    if (fileName == null) return Icons.insert_drive_file_rounded;
+    final ext = fileName.split('.').last.toLowerCase();
+    switch (ext) {
+      case 'pdf':
+        return Icons.picture_as_pdf_rounded;
+      case 'doc':
+      case 'docx':
+        return Icons.description_rounded;
+      case 'xls':
+      case 'xlsx':
+        return Icons.table_chart_rounded;
+      case 'zip':
+      case 'rar':
+      case '7z':
+      case 'tar':
+        return Icons.folder_zip_rounded;
+      case 'txt':
+        return Icons.text_snippet_rounded;
+      default:
+        return Icons.insert_drive_file_rounded;
+    }
+  }
+
+  Color _getFileColor(String? fileName) {
+    if (fileName == null) return const Color(0xFFFF9F43);
+    final ext = fileName.split('.').last.toLowerCase();
+    switch (ext) {
+      case 'pdf':
+        return const Color(0xFFFF5252);
+      case 'doc':
+      case 'docx':
+        return const Color(0xFF4A90E2);
+      case 'xls':
+      case 'xlsx':
+        return const Color(0xFF2ECC71);
+      case 'zip':
+      case 'rar':
+      case '7z':
+        return const Color(0xFFF39C12);
+      default:
+        return const Color(0xFFFF9F43);
+    }
+  }
+
+  Widget _buildDocumentContent(BuildContext context) {
+    final fileName = message.documentFileName ?? 'Document';
+    final fileSize = message.documentFileSize;
+    final fileColor = _getFileColor(fileName);
+    final fileIcon = _getFileIcon(fileName);
+
+    return InkWell(
+      onTap: () => _handleDocumentTap(context),
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 260),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: isMine
+              ? Colors.white.withAlpha(25)
+              : AppColors.surfaceVariantDark.withAlpha(180),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isMine
+                ? Colors.white.withAlpha(40)
+                : AppColors.surfaceBorder,
+            width: 1,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: fileColor.withAlpha(35),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: fileColor.withAlpha(80), width: 1.2),
+              ),
+              child: Icon(fileIcon, color: fileColor, size: 22),
+            ),
+            const SizedBox(width: 10),
+            Flexible(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    fileName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: isMine ? Colors.white : AppColors.textPrimaryDark,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        _formatFileSize(fileSize),
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: isMine ? Colors.white70 : AppColors.textMutedDark,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Icon(
+                        Icons.download_rounded,
+                        size: 13,
+                        color: isMine ? Colors.white60 : AppColors.textMutedDark,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -389,6 +653,18 @@ class MessageBubble extends ConsumerWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              if (onReply != null && !message.isDeleted)
+                ListTile(
+                  leading: const Icon(
+                    Icons.reply_rounded,
+                    color: AppColors.primaryLight,
+                  ),
+                  title: const Text('Reply'),
+                  onTap: () {
+                    Navigator.of(ctx).pop();
+                    onReply?.call(message);
+                  },
+                ),
               if (message.content != null && message.content!.isNotEmpty) ...[
                 ListTile(
                   leading: const Icon(

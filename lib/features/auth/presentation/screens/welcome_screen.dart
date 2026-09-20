@@ -134,14 +134,17 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen>
                           width: 88,
                           height: 88,
                           decoration: BoxDecoration(
-                            gradient: AppColors.primaryGradient,
                             borderRadius: BorderRadius.circular(26),
                             boxShadow: AppColors.primaryGlow,
                           ),
-                          child: const Icon(
-                            Icons.shield_rounded,
-                            size: 46,
-                            color: Colors.white,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(26),
+                            child: Image.asset(
+                              'logo.png',
+                              width: 88,
+                              height: 88,
+                              fit: BoxFit.cover,
+                            ),
                           ),
                         ),
                       ),

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/services/presence/presence_provider.dart';
 import '../../../../core/services/supabase_service.dart';
 import '../../data/auth_repository_impl.dart';
 import '../../domain/models/user_profile.dart';
@@ -64,6 +65,10 @@ class AuthNotifier extends AsyncNotifier<UserProfile?> {
 
   /// Sign out and clear state.
   Future<void> signOut() async {
+    try {
+      await ref.read(presenceServiceProvider).setOffline();
+      await ref.read(presenceServiceProvider).disposeChannelOnly();
+    } catch (_) {}
     await _repo.signOut();
     state = const AsyncData(null);
   }

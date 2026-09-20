@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
 
-enum AttachmentType { gallery, camera, viewOnce, voice }
+enum AttachmentType { gallery, camera, document, voice }
 
 /// Sleek modal bottom sheet for choosing chat attachment types.
+/// Displays Gallery, Camera, and Document options.
 class AttachmentSheet extends StatelessWidget {
   const AttachmentSheet({super.key, required this.onSelect});
 
@@ -54,7 +55,7 @@ class AttachmentSheet extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             const Text(
-              'Select media to share anonymously in this chat',
+              'Select media or documents to share anonymously in this chat',
               style: TextStyle(
                 fontSize: 12,
                 color: AppColors.textSecondaryDark,
@@ -81,9 +82,9 @@ class AttachmentSheet extends StatelessWidget {
                 ),
                 _buildActionItem(
                   context,
-                  type: AttachmentType.viewOnce,
-                  icon: Icons.looks_one_rounded,
-                  label: 'View-Once',
+                  type: AttachmentType.document,
+                  icon: Icons.description_rounded,
+                  label: 'Document',
                   color: const Color(0xFFFF9F43),
                 ),
               ],

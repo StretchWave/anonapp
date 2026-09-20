@@ -1,7 +1,7 @@
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../../core/theme/app_colors.dart';
 
@@ -127,6 +127,34 @@ class _ImagePreviewDialogState extends State<ImagePreviewDialog> {
             ),
           ),
 
+          // View-once privacy notice banner when active
+          if (_isViewOnce)
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.accent.withAlpha(35),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.accent.withAlpha(90), width: 1),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.timer_outlined, size: 16, color: AppColors.accent),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'View-once photo: burns after 10s upon opening. Screenshots & recordings blocked.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.accent,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
           // Image preview area
           Expanded(
             child: Padding(
@@ -167,15 +195,55 @@ class _ImagePreviewDialogState extends State<ImagePreviewDialog> {
                         horizontal: 16,
                         vertical: 12,
                       ),
+                      suffixIcon: Padding(
+                        padding: const EdgeInsets.only(right: 6),
+                        child: IconButton(
+                          tooltip: _isViewOnce
+                              ? 'View-once enabled (tap to disable)'
+                              : 'Set to view once',
+                          icon: Container(
+                            width: 28,
+                            height: 28,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: _isViewOnce
+                                  ? AppColors.accent
+                                  : Colors.transparent,
+                              border: Border.all(
+                                color: _isViewOnce
+                                    ? AppColors.accent
+                                    : Colors.white54,
+                                width: 1.8,
+                              ),
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              '1',
+                              style: TextStyle(
+                                color: _isViewOnce
+                                    ? Colors.white
+                                    : Colors.white70,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                          onPressed: () {
+                            HapticFeedback.lightImpact();
+                            setState(() => _isViewOnce = !_isViewOnce);
+                          },
+                        ),
+                      ),
                     ),
                   ),
                 ),
                 const SizedBox(width: 12),
                 FloatingActionButton(
                   onPressed: _handleSend,
-                  backgroundColor: AppColors.primary,
+                  backgroundColor: _isViewOnce ? AppColors.accent : AppColors.primary,
                   foregroundColor: Colors.white,
-                  child: const Icon(Icons.send_rounded),
+                  tooltip: _isViewOnce ? 'Send view-once photo' : 'Send photo',
+                  child: Icon(_isViewOnce ? Icons.looks_one_rounded : Icons.send_rounded),
                 ),
               ],
             ),

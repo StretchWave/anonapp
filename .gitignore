@@ -69,3 +69,4 @@ app.*.map.json
 *.sql
 supabase/migrations/
 supabase/
+android/build/

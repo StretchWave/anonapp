@@ -7,6 +7,7 @@ enum MessageType {
   image,
   viewOnceImage,
   audio,
+  document,
   system,
   deleted;
 
@@ -18,6 +19,8 @@ enum MessageType {
         return MessageType.viewOnceImage;
       case 'audio':
         return MessageType.audio;
+      case 'document':
+        return MessageType.document;
       case 'system':
         return MessageType.system;
       case 'deleted':
@@ -32,6 +35,8 @@ enum MessageType {
     switch (this) {
       case MessageType.viewOnceImage:
         return 'view_once_image';
+      case MessageType.document:
+        return 'document';
       default:
         return name;
     }
@@ -79,9 +84,13 @@ class Message {
       resolvedStatus = MessageStatus.delivered;
     }
 
-    final msgType = MessageType.fromString(
-      json['message_type'] as String? ?? 'text',
-    );
+    final isDocMeta =
+        (json['media_meta'] as Map<String, dynamic>?)?['is_document'] == true;
+    final msgType = isDocMeta
+        ? MessageType.document
+        : MessageType.fromString(
+            json['message_type'] as String? ?? 'text',
+          );
 
     return Message(
       id: json['id'] as String,
@@ -91,9 +100,7 @@ class Message {
       messageType: msgType,
       clientId: json['client_id'] as String?,
       mediaUrl: json['media_url'] as String?,
-      mediaData: (msgType == MessageType.viewOnceImage && viewedAt != null)
-          ? null
-          : json['media_data'] as String?,
+      mediaData: json['media_data'] as String?,
       mediaMeta: json['media_meta'] as Map<String, dynamic>?,
       createdAt: DateTime.parse(json['created_at'] as String),
       deliveredAt: deliveredAt,
@@ -140,6 +147,23 @@ class Message {
   /// True if message is a voice note.
   bool get isAudio => messageType == MessageType.audio;
 
+  /// True if message is a document file.
+  bool get isDocument =>
+      messageType == MessageType.document ||
+      (mediaMeta?['is_document'] == true);
+
+  /// Document metadata helpers.
+  String? get documentFileName =>
+      mediaMeta?['file_name'] as String? ?? content;
+  int? get documentFileSize => mediaMeta?['file_size'] as int?;
+  String? get documentMimeType => mediaMeta?['mime_type'] as String?;
+
+  /// Reply quote metadata.
+  String? get replyToId => mediaMeta?['reply_to_id'] as String?;
+  String? get replyToContent => mediaMeta?['reply_to_content'] as String?;
+  String? get replyToSender => mediaMeta?['reply_to_sender'] as String?;
+  bool get hasReply => replyToContent != null && replyToContent!.isNotEmpty;
+
   /// Display text, masking deleted messages.
   String get displayText {
     if (isDeleted) {
@@ -147,6 +171,9 @@ class Message {
     }
     if (isViewOnce) {
       return isViewOnceOpened ? 'Photo (Opened)' : 'Photo (View once)';
+    }
+    if (isDocument) {
+      return '📄 ${documentFileName ?? "Document"}';
     }
     if (isImage) {
       return content?.isNotEmpty == true ? content! : 'Photo';
@@ -201,9 +228,7 @@ class Message {
 
     final effectiveMediaData = clearMediaData
         ? null
-        : (effectiveType == MessageType.viewOnceImage && effectiveViewedAt != null)
-            ? null
-            : (mediaData ?? this.mediaData);
+        : (mediaData ?? this.mediaData);
 
     return Message(
       id: id ?? this.id,
