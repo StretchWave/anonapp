@@ -63,6 +63,13 @@ class FakePresenceService implements PresenceService {
     }
   }
 
+  int reconnectNowCallCount = 0;
+
+  @override
+  Future<void> reconnectNow() async {
+    reconnectNowCallCount++;
+  }
+
   @override
   Future<void> disposeChannelOnly() async {
     _isTracking = false;
@@ -220,7 +227,7 @@ void main() {
       expect(fakeService.setOfflineCallCount, equals(1));
     });
 
-    test('Hybrid presence: isUserOnlineProvider falls back to userLastSeenProvider within 90s', () async {
+    test('Strict presence: isUserOnlineProvider relies strictly on Realtime presence', () async {
       final fakeService = FakePresenceService();
       final container = ProviderContainer(
         overrides: [
@@ -232,21 +239,19 @@ void main() {
       // User 'charlie' is NOT in WebSocket presence
       expect(container.read(isUserOnlineProvider('charlie')), isFalse);
 
-      // Record activity 30 seconds ago (< 90s window)
+      // Even if activity was recorded 30 seconds ago, user is offline if not in presence
       container.read(userLastSeenProvider.notifier).recordLastSeen(
         'charlie',
         DateTime.now().toUtc().subtract(const Duration(seconds: 30)),
       );
 
-      // Hybrid resolver marks Charlie as online
-      expect(container.read(isUserOnlineProvider('charlie')), isTrue);
+      // Offline because WebSocket presence is the single source of truth
+      expect(container.read(isUserOnlineProvider('charlie')), isFalse);
 
-      // Record activity 120 seconds ago (> 90s window)
-      container.read(userLastSeenProvider.notifier).recordLastSeen(
-        'david',
-        DateTime.now().toUtc().subtract(const Duration(seconds: 120)),
-      );
-      expect(container.read(isUserOnlineProvider('david')), isFalse);
+      // When added to presence, user is online
+      fakeService.emitOnlineUsers({'charlie'});
+      await pumpEventQueue();
+      expect(container.read(isUserOnlineProvider('charlie')), isTrue);
     });
 
     test('Privacy setting toggle immediately sets user offline when disabled', () async {

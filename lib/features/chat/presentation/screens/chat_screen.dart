@@ -106,6 +106,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           .update((s) => {...s, widget.conversationId});
       NotificationService.instance
           .clearNotificationsForConversation(widget.conversationId);
+    } else if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.hidden) {
+      if (ref.read(activeConversationIdProvider) == widget.conversationId) {
+        ref.read(activeConversationIdProvider.notifier).state = null;
+      }
     }
   }
 

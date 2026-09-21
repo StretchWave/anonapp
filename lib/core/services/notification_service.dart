@@ -17,7 +17,7 @@ class NotificationService {
 
   bool _initialized = false;
 
-  static const String _channelId = 'anonapp_messages_v4';
+  static const String _channelId = 'anonapp_messages_v5';
   static const String _channelName = 'Incoming Messages';
   static const String _channelDescription =
       'Notifications with sound and vibration for incoming anonymous messages';
@@ -58,6 +58,7 @@ class NotificationService {
       try {
         await androidImplementation.deleteNotificationChannel(channelId: 'anonapp_messages');
         await androidImplementation.deleteNotificationChannel(channelId: 'anonapp_messages_v2');
+        await androidImplementation.deleteNotificationChannel(channelId: 'anonapp_messages_v4');
       } catch (_) {}
 
       await androidImplementation.createNotificationChannel(
@@ -228,7 +229,7 @@ class NotificationService {
       category: AndroidNotificationCategory.message,
       channelShowBadge: true,
       onlyAlertOnce: false, // Plays sound/vibration on new message while updating card
-      groupKey: 'com.example.anonapp.MESSAGES',
+      fullScreenIntent: false,
       icon: '@mipmap/ic_launcher',
       ticker: contentTitle,
       styleInformation: styleInfo,

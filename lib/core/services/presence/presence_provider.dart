@@ -79,22 +79,12 @@ final userLastSeenProvider =
     });
 
 /// Checks whether a specific user is currently verified as online.
-/// Checks Realtime presence first, and falls back to a 90-second hybrid window
-/// based on recent activity/last seen.
+/// Evaluates real-time Presence directly as the authoritative single source of truth,
+/// eliminating phantom 90-second delays where offline users linger as online.
 final isUserOnlineProvider = Provider.family<bool, String?>((ref, userId) {
   if (userId == null || userId.isEmpty) return false;
   final onlineIds = ref.watch(onlineUserIdsProvider);
-  if (onlineIds.contains(userId)) return true;
-
-  final lastSeenMap = ref.watch(userLastSeenProvider);
-  final lastSeen = lastSeenMap[userId];
-  if (lastSeen != null) {
-    final diff = DateTime.now().toUtc().difference(lastSeen.toUtc());
-    if (diff.inSeconds >= 0 && diff.inSeconds <= 90) {
-      return true;
-    }
-  }
-  return false;
+  return onlineIds.contains(userId);
 });
 
 /// Lifecycle and presence synchronization manager.
@@ -113,7 +103,7 @@ class PresenceSyncManager with WidgetsBindingObserver {
   PresenceSyncManager(
     this._service, {
     Ref? ref,
-    this.debounceDuration = const Duration(seconds: 12),
+    this.debounceDuration = const Duration(milliseconds: 1500),
   }) : _ref = ref { // ignore: prefer_initializing_formals
     WidgetsBinding.instance.addObserver(this);
     if (_ref != null) {
@@ -197,17 +187,24 @@ class PresenceSyncManager with WidgetsBindingObserver {
       // In foreground: immediately cancel pending offline transitions and mark online
       _debounceTimer?.cancel();
       _debounceTimer = null;
-      _service.setOnline();
+      unawaited(_service.setOnline());
     } else if (state == AppLifecycleState.detached) {
       // App closing / terminating: immediately mark offline
       _debounceTimer?.cancel();
       _debounceTimer = null;
-      _service.setOffline();
+      unawaited(_service.setOffline());
+    } else if (state == AppLifecycleState.inactive) {
+      // Temporary overlay (notification shade, permission dialog)
+      _debounceTimer?.cancel();
+      final delay = debounceDuration.inMilliseconds < 1000
+          ? debounceDuration
+          : const Duration(seconds: 3);
+      _debounceTimer = Timer(delay, () {
+        _service.setOffline();
+      });
     } else {
-      // inactive, paused, hidden:
-      // Apply a grace period debounce before untracking to prevent notification
-      // shade pulls, photo pickers, app switcher swipes, or brief backgroundings
-      // from flashing the user offline.
+      // paused, hidden:
+      // Backgrounded on mobile / desktop. Untrack promptly before the OS freezes the process.
       _debounceTimer?.cancel();
       _debounceTimer = Timer(debounceDuration, () {
         _service.setOffline();

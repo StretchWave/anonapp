@@ -145,6 +145,8 @@ class BackgroundSyncManager with WidgetsBindingObserver {
     if (!isResumed) {
       // Zeroize and wipe in-memory cryptographic key cache immediately upon minimize/screen lock
       EncryptionService.instance.clearKeyCache();
+      // Clear active conversation ID so background messages trigger notifications properly
+      _ref.read(activeConversationIdProvider.notifier).state = null;
 
       // App was minimized or moved to background
       Future.delayed(const Duration(milliseconds: 350), () {
@@ -155,6 +157,7 @@ class BackgroundSyncManager with WidgetsBindingObserver {
       // Returned to foreground
       _reconnectRealtime();
       _ref.invalidate(conversationsProvider);
+      unawaited(_checkUnreadMessages());
       final activeConvId = _ref.read(activeConversationIdProvider);
       if (activeConvId != null) {
         try {
@@ -426,7 +429,20 @@ final messageNotificationListenerProvider = Provider<void>((ref) {
           } catch (_) {}
         },
       )
-      .subscribe();
+      .subscribe((status, error) {
+        if (status == RealtimeSubscribeStatus.channelError ||
+            status == RealtimeSubscribeStatus.timedOut ||
+            status == RealtimeSubscribeStatus.closed) {
+          debugPrint(
+            '[NotificationListener] global_notifications channel status: $status ($error). Reconnecting...',
+          );
+          Future.delayed(const Duration(seconds: 2), () {
+            if (client.auth.currentUser != null) {
+              channel.subscribe();
+            }
+          });
+        }
+      });
 
   ref.onDispose(() {
     syncManager.stop();

@@ -117,11 +117,28 @@ class PresenceService {
     });
   }
 
+  /// Reconnect immediately if channel is dead or disconnected (e.g. on app resume).
+  Future<void> reconnectNow() async {
+    final uid = _userId;
+    if (uid == null || !_canShowOnline) return;
+    _reconnectTimer?.cancel();
+    _reconnectTimer = null;
+    _reconnectAttempts = 0;
+    debugPrint('[PresenceService] Immediate channel reconnect requested.');
+    await _setupChannel(uid, _canShowOnline);
+  }
+
   /// Schedules an auto-reconnection attempt with exponential backoff.
-  void _scheduleReconnect() {
+  void _scheduleReconnect({bool immediate = false}) {
     if (_reconnectTimer?.isActive ?? false) return;
     final uid = _userId;
     if (uid == null || !_canShowOnline) return;
+
+    if (immediate) {
+      _reconnectAttempts = 0;
+      unawaited(_setupChannel(uid, _canShowOnline));
+      return;
+    }
 
     _reconnectAttempts++;
     // Exponential backoff: 1s, 2s, 4s, 8s (capped at 16s)
@@ -142,6 +159,13 @@ class PresenceService {
     final uid = _userId;
     if (uid == null || !_canShowOnline || platform.isWebDocumentHidden()) return;
 
+    // Check if channel is null or socket disconnected; re-establish if needed
+    if (_channel == null || !_client.realtime.isConnected) {
+      debugPrint('[PresenceService] Socket or channel inactive in setOnline. Re-establishing channel...');
+      await _setupChannel(uid, _canShowOnline);
+      return;
+    }
+
     _isTracking = true;
     try {
       final response = await _channel?.track({
@@ -154,6 +178,7 @@ class PresenceService {
           _scheduleReconnect();
         }
       }
+      _syncPresence();
     } catch (e) {
       debugPrint('[PresenceService] Error tracking presence online: $e');
     }
@@ -202,6 +227,8 @@ class PresenceService {
     } catch (e) {
       debugPrint('[PresenceService] Error untracking presence offline: $e');
     }
+
+    _syncPresence();
 
     // Update last_seen in DB if online visibility is enabled
     final uid = _userId;

@@ -114,7 +114,6 @@ void main() {
   });
 
   group('Conversation Filtering Logic', () {
-    const userA = 'user-aaa-111';
     const convId1 = 'conv-1001';
     const convId2 = 'conv-1002';
 
