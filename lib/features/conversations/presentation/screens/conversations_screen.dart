@@ -69,167 +69,176 @@ class _ConversationsScreenState extends ConsumerState<ConversationsScreen> {
         await AppControlService.minimizeApp();
       },
       child: Scaffold(
-      appBar: AppBar(
-        titleSpacing: 20,
-        title: Row(
-          children: [
-            Container(
-              width: 34,
-              height: 34,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(10),
-                boxShadow: AppColors.primaryGlow,
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: Image.asset(
-                  'logo.png',
-                  width: 34,
-                  height: 34,
-                  fit: BoxFit.cover,
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            const Text(
-              'Chats',
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.w700,
-                letterSpacing: -0.5,
-              ),
-            ),
-            if (totalUnread > 0) ...[
-              const SizedBox(width: 10),
+        appBar: AppBar(
+          titleSpacing: 20,
+          title: Row(
+            children: [
               Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 3,
-                ),
+                width: 34,
+                height: 34,
                 decoration: BoxDecoration(
-                  gradient: AppColors.primaryGradient,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(10),
                   boxShadow: AppColors.primaryGlow,
                 ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.mark_chat_unread_rounded,
-                      size: 13,
-                      color: Colors.white,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      '$totalUnread',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: Image.asset(
+                    'logo.png',
+                    width: 34,
+                    height: 34,
+                    fit: BoxFit.cover,
+                  ),
                 ),
               ),
+              const SizedBox(width: 12),
+              const Text(
+                'Chats',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.5,
+                ),
+              ),
+              if (totalUnread > 0) ...[
+                const SizedBox(width: 10),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    gradient: AppColors.primaryGradient,
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: AppColors.primaryGlow,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.mark_chat_unread_rounded,
+                        size: 13,
+                        color: Colors.white,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        '$totalUnread',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ],
+          ),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.refresh_rounded, size: 22),
+              tooltip: 'Refresh',
+              color: AppColors.textSecondaryDark,
+              onPressed: () => ref.invalidate(conversationsProvider),
+            ),
+            IconButton(
+              icon: const Icon(Icons.search_rounded, size: 22),
+              tooltip: 'Search Users',
+              color: AppColors.textSecondaryDark,
+              onPressed:
+                  widget.onNavigateToSearch ?? () => context.push('/search'),
+            ),
+            const SizedBox(width: 8),
           ],
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded, size: 22),
-            tooltip: 'Refresh',
-            color: AppColors.textSecondaryDark,
-            onPressed: () => ref.invalidate(conversationsProvider),
-          ),
-          IconButton(
-            icon: const Icon(Icons.search_rounded, size: 22),
-            tooltip: 'Search Users',
-            color: AppColors.textSecondaryDark,
-            onPressed:
-                widget.onNavigateToSearch ?? () => context.push('/search'),
-          ),
-          const SizedBox(width: 8),
-        ],
-      ),
-      body: Column(
-        children: [
-          // Segmented Filter Bar
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Row(
-              children: [
-                _buildFilterPill('All', ChatFilter.all),
-                const SizedBox(width: 8),
-                _buildFilterPill(
-                  totalUnread > 0 ? 'Unread ($totalUnread)' : 'Unread',
-                  ChatFilter.unread,
-                ),
-                const SizedBox(width: 8),
-                _buildFilterPill('Active', ChatFilter.active),
-              ],
-            ),
-          ),
-          const SizedBox(height: 4),
-
-          // Conversation List Body
-          Expanded(
-            child: RefreshIndicator(
-              color: AppColors.primary,
-              backgroundColor: AppColors.surfaceDark,
-              onRefresh: () async {
-                ref.invalidate(conversationsProvider);
-                await ref.read(conversationsProvider.future);
-              },
-              child: conversationsAsync.when(
-                loading: () => const ConversationSkeletonList(itemCount: 8),
-                error: (error, _) => _buildErrorView(error),
-                data: (allConversations) {
-                  final filtered = _applyFilter(allConversations);
-
-                  if (filtered.isEmpty) {
-                    return _EmptyConversationsView(
-                      filter: _activeFilter,
-                      onStartChat:
-                          widget.onNavigateToSearch ??
-                          () => context.push('/search'),
-                    );
-                  }
-
-                  return ListView.builder(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    itemCount: filtered.length,
-                    itemBuilder: (context, index) {
-                      final conv = filtered[index];
-                      return _ConversationTile(
-                        conversation: conv,
-                        index: index,
-                        onTap: () async {
-                          final username = conv.otherMemberUsername ?? '';
-                          final otherUid = conv.otherMemberId ?? '';
-                          ref
-                              .read(locallyReadConversationIdsProvider.notifier)
-                              .update((s) => {...s, conv.id});
-                          await context.push('/chat/${conv.id}?username=$username&otherUserId=$otherUid');
-                          ref.invalidate(conversationsProvider);
-                        },
-                        onToggleMute: () async {
-                          final repo = ref.read(conversationRepositoryProvider);
-                          await repo.toggleMute(conv.id, muted: !conv.isMuted);
-                          ref.invalidate(conversationsProvider);
-                        },
-                      );
-                    },
-                  );
-                },
+        body: Column(
+          children: [
+            // Segmented Filter Bar
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Row(
+                children: [
+                  _buildFilterPill('All', ChatFilter.all),
+                  const SizedBox(width: 8),
+                  _buildFilterPill(
+                    totalUnread > 0 ? 'Unread ($totalUnread)' : 'Unread',
+                    ChatFilter.unread,
+                  ),
+                  const SizedBox(width: 8),
+                  _buildFilterPill('Active', ChatFilter.active),
+                ],
               ),
             ),
-          ),
-        ],
+            const SizedBox(height: 4),
+
+            // Conversation List Body
+            Expanded(
+              child: RefreshIndicator(
+                color: AppColors.primary,
+                backgroundColor: AppColors.surfaceDark,
+                onRefresh: () async {
+                  ref.invalidate(conversationsProvider);
+                  await ref.read(conversationsProvider.future);
+                },
+                child: conversationsAsync.when(
+                  loading: () => const ConversationSkeletonList(itemCount: 8),
+                  error: (error, _) => _buildErrorView(error),
+                  data: (allConversations) {
+                    final filtered = _applyFilter(allConversations);
+
+                    if (filtered.isEmpty) {
+                      return _EmptyConversationsView(
+                        filter: _activeFilter,
+                        onStartChat:
+                            widget.onNavigateToSearch ??
+                            () => context.push('/search'),
+                      );
+                    }
+
+                    return ListView.builder(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      itemCount: filtered.length,
+                      itemBuilder: (context, index) {
+                        final conv = filtered[index];
+                        return _ConversationTile(
+                          conversation: conv,
+                          index: index,
+                          onTap: () async {
+                            final username = conv.otherMemberUsername ?? '';
+                            final otherUid = conv.otherMemberId ?? '';
+                            ref
+                                .read(
+                                  locallyReadConversationIdsProvider.notifier,
+                                )
+                                .update((s) => {...s, conv.id});
+                            await context.push(
+                              '/chat/${conv.id}?username=$username&otherUserId=$otherUid',
+                            );
+                            ref.invalidate(conversationsProvider);
+                          },
+                          onToggleMute: () async {
+                            final repo = ref.read(
+                              conversationRepositoryProvider,
+                            );
+                            await repo.toggleMute(
+                              conv.id,
+                              muted: !conv.isMuted,
+                            );
+                            ref.invalidate(conversationsProvider);
+                          },
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
-    ),
     );
   }
 
@@ -329,7 +338,8 @@ class _ConversationTile extends ConsumerWidget {
     final username = conversation.otherMemberUsername ?? 'Anonymous';
     final initial = username.isNotEmpty ? username[0].toUpperCase() : '?';
     final hasUnread = conversation.unreadCount > 0;
-    final isOtherOnline = conversation.otherMemberId != null &&
+    final isOtherOnline =
+        conversation.otherMemberId != null &&
         ref.watch(isUserOnlineProvider(conversation.otherMemberId));
 
     return TweenAnimationBuilder<double>(
@@ -611,7 +621,11 @@ class _ConversationTile extends ConsumerWidget {
       builder: (ctx) => AlertDialog(
         title: const Row(
           children: [
-            Icon(Icons.delete_forever_rounded, color: AppColors.error, size: 22),
+            Icon(
+              Icons.delete_forever_rounded,
+              color: AppColors.error,
+              size: 22,
+            ),
             SizedBox(width: 10),
             Text('Delete Chat?'),
           ],

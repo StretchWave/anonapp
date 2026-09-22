@@ -88,9 +88,7 @@ class Message {
         (json['media_meta'] as Map<String, dynamic>?)?['is_document'] == true;
     final msgType = isDocMeta
         ? MessageType.document
-        : MessageType.fromString(
-            json['message_type'] as String? ?? 'text',
-          );
+        : MessageType.fromString(json['message_type'] as String? ?? 'text');
 
     return Message(
       id: json['id'] as String,
@@ -153,8 +151,7 @@ class Message {
       (mediaMeta?['is_document'] == true);
 
   /// Document metadata helpers.
-  String? get documentFileName =>
-      mediaMeta?['file_name'] as String? ?? content;
+  String? get documentFileName => mediaMeta?['file_name'] as String? ?? content;
   int? get documentFileSize => mediaMeta?['file_size'] as int?;
   String? get documentMimeType => mediaMeta?['mime_type'] as String?;
 

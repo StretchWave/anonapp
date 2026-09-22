@@ -68,7 +68,9 @@ class ConversationRepository {
       // Fetch latest messages across these conversations for preview
       final recentMessages = await _client
           .from(SupabaseConstants.messagesTable)
-          .select('conversation_id, content, message_type, created_at, sender_id')
+          .select(
+            'conversation_id, content, message_type, created_at, sender_id',
+          )
           .inFilter('conversation_id', conversationIds)
           .isFilter('deleted_at', null)
           .order('created_at', ascending: false)
@@ -138,10 +140,13 @@ class ConversationRepository {
               break;
             default:
               final rawContent = lastMsg['content'] as String?;
-              if (rawContent != null && EncryptionService.isEncrypted(rawContent)) {
+              if (rawContent != null &&
+                  EncryptionService.isEncrypted(rawContent)) {
                 try {
-                  lastContent = await EncryptionService.instance
-                      .decryptText(rawContent, convId);
+                  lastContent = await EncryptionService.instance.decryptText(
+                    rawContent,
+                    convId,
+                  );
                 } catch (_) {
                   lastContent = 'Encrypted message';
                 }

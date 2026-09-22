@@ -38,8 +38,9 @@ final activeReplyProvider = StateProvider.autoDispose
     .family<ReplyMessageInfo?, String>((ref, conversationId) => null);
 
 /// Indicates whether the other participant in a conversation is currently typing.
-final otherUserTypingProvider = StateProvider.autoDispose
-    .family<bool, String>((ref, conversationId) => false);
+final otherUserTypingProvider = StateProvider.autoDispose.family<bool, String>(
+  (ref, conversationId) => false,
+);
 
 /// State of messages for a single conversation.
 /// Handles initial fetch, realtime sync, optimistic sending, and read receipts.
@@ -94,7 +95,10 @@ class MessagesNotifier extends StateNotifier<AsyncValue<List<Message>>> {
   String get _currentUserId => _client.auth.currentUser!.id;
 
   void _listenToLifecycle() {
-    _lifecycleSub = _ref.listen<bool>(isAppResumedProvider, (previous, isResumed) {
+    _lifecycleSub = _ref.listen<bool>(isAppResumedProvider, (
+      previous,
+      isResumed,
+    ) {
       if (isResumed && previous != true) {
         unawaited(syncLatestMessages());
       }
@@ -117,8 +121,10 @@ class MessagesNotifier extends StateNotifier<AsyncValue<List<Message>>> {
       final filteredMessages = _clientDeletedAt == null
           ? messages
           : messages
-              .where((m) => m.createdAt.toUtc().isAfter(_clientDeletedAt!.toUtc()))
-              .toList();
+                .where(
+                  (m) => m.createdAt.toUtc().isAfter(_clientDeletedAt!.toUtc()),
+                )
+                .toList();
 
       final prefs = await SharedPreferences.getInstance();
 
@@ -179,7 +185,8 @@ class MessagesNotifier extends StateNotifier<AsyncValue<List<Message>>> {
         for (final m in serverMessages) {
           if (!existingIds.contains(m.id) &&
               (m.clientId == null || !existingIds.contains(m.clientId))) {
-            final isAfterClear = _clearedAt == null ||
+            final isAfterClear =
+                _clearedAt == null ||
                 m.createdAt.isAfter(_clearedAt!) ||
                 m.senderId == _currentUserId;
             if (isAfterClear) {
@@ -232,7 +239,8 @@ class MessagesNotifier extends StateNotifier<AsyncValue<List<Message>>> {
       var msg = Message.fromJson(record);
       msg = await _repo.decryptMessagePayload(msg, _conversationId);
 
-      final isAfterClear = _clearedAt == null ||
+      final isAfterClear =
+          _clearedAt == null ||
           msg.createdAt.isAfter(_clearedAt!) ||
           msg.senderId == _currentUserId;
 
@@ -281,10 +289,12 @@ class MessagesNotifier extends StateNotifier<AsyncValue<List<Message>>> {
           updated[indexByClient] = newMessage;
           state = AsyncData(updated);
         } else if (!currentMessages.any((m) => m.id == newMessage.id)) {
-          final isAfterClientDelete = _clientDeletedAt == null ||
+          final isAfterClientDelete =
+              _clientDeletedAt == null ||
               newMessage.createdAt.toUtc().isAfter(_clientDeletedAt!.toUtc()) ||
               newMessage.senderId == _currentUserId;
-          final isAfterClear = (_clearedAt == null ||
+          final isAfterClear =
+              (_clearedAt == null ||
                   newMessage.createdAt.isAfter(_clearedAt!) ||
                   newMessage.senderId == _currentUserId) &&
               isAfterClientDelete;
@@ -325,10 +335,12 @@ class MessagesNotifier extends StateNotifier<AsyncValue<List<Message>>> {
         );
         if (alreadyExists) return;
 
-        final isAfterClientDelete = _clientDeletedAt == null ||
+        final isAfterClientDelete =
+            _clientDeletedAt == null ||
             broadcastMsg.createdAt.toUtc().isAfter(_clientDeletedAt!.toUtc()) ||
             broadcastMsg.senderId == _currentUserId;
-        final isAfterClear = (_clearedAt == null ||
+        final isAfterClear =
+            (_clearedAt == null ||
                 broadcastMsg.createdAt.isAfter(_clearedAt!) ||
                 broadcastMsg.senderId == _currentUserId) &&
             isAfterClientDelete;
@@ -400,7 +412,9 @@ class MessagesNotifier extends StateNotifier<AsyncValue<List<Message>>> {
           _typingTimer?.cancel();
           _typingTimer = Timer(const Duration(seconds: 3), () {
             try {
-              _ref.read(otherUserTypingProvider(_conversationId).notifier).state =
+              _ref
+                      .read(otherUserTypingProvider(_conversationId).notifier)
+                      .state =
                   false;
             } catch (_) {}
           });
@@ -441,8 +455,9 @@ class MessagesNotifier extends StateNotifier<AsyncValue<List<Message>>> {
       }
 
       final existingIds = currentMessages.map((m) => m.id).toSet();
-      final freshOlder =
-          older.where((m) => !existingIds.contains(m.id)).toList();
+      final freshOlder = older
+          .where((m) => !existingIds.contains(m.id))
+          .toList();
 
       if (freshOlder.isNotEmpty) {
         state = AsyncData([...currentMessages, ...freshOlder]);
@@ -551,8 +566,6 @@ class MessagesNotifier extends StateNotifier<AsyncValue<List<Message>>> {
       }
     }
   }
-
-
 
   /// Optimistically adds an image message, sends it, and updates state.
   Future<void> sendImageMessage({

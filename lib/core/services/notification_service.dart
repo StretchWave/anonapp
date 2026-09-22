@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -17,10 +18,10 @@ class NotificationService {
 
   bool _initialized = false;
 
-  static const String _channelId = 'anonapp_messages_v5';
+  static const String _channelId = 'anonapp_messages';
   static const String _channelName = 'Incoming Messages';
   static const String _channelDescription =
-      'Notifications with sound and vibration for incoming anonymous messages';
+      'High-priority sound and vibration notifications for incoming anonymous messages';
 
   /// Initialize local notification plugins and channel for Android and iOS.
   /// No-op on Web.
@@ -28,7 +29,7 @@ class NotificationService {
     if (kIsWeb || _initialized) return;
 
     const androidSettings = AndroidInitializationSettings(
-      '@mipmap/ic_launcher',
+      '@drawable/ic_stat_notification',
     );
 
     const darwinSettings = DarwinInitializationSettings(
@@ -54,13 +55,6 @@ class NotificationService {
         >();
 
     if (androidImplementation != null) {
-      // Clean up legacy lower-importance channels
-      try {
-        await androidImplementation.deleteNotificationChannel(channelId: 'anonapp_messages');
-        await androidImplementation.deleteNotificationChannel(channelId: 'anonapp_messages_v2');
-        await androidImplementation.deleteNotificationChannel(channelId: 'anonapp_messages_v4');
-      } catch (_) {}
-
       await androidImplementation.createNotificationChannel(
         const AndroidNotificationChannel(
           _channelId,
@@ -137,8 +131,8 @@ class NotificationService {
   Future<void> checkLaunchNotification() async {
     if (kIsWeb) return;
     try {
-      final launchDetails =
-          await _notificationsPlugin.getNotificationAppLaunchDetails();
+      final launchDetails = await _notificationsPlugin
+          .getNotificationAppLaunchDetails();
       if (launchDetails?.didNotificationLaunchApp == true &&
           launchDetails?.notificationResponse != null) {
         _handleNotificationTap(launchDetails!.notificationResponse!);
@@ -166,7 +160,8 @@ class NotificationService {
       await initialize();
     }
 
-    final notifId = id ??
+    final notifId =
+        id ??
         (conversationId != null
             ? conversationNotificationId(conversationId)
             : (body.hashCode & 0x7FFFFFFF));
@@ -194,8 +189,9 @@ class NotificationService {
 
     String contentTitle;
     if (isDiscreet) {
-      contentTitle =
-          unreadCount > 1 ? 'AnonApp ($unreadCount messages)' : 'AnonApp';
+      contentTitle = unreadCount > 1
+          ? 'AnonApp ($unreadCount messages)'
+          : 'AnonApp';
     } else if (senderUsername != null && senderUsername.isNotEmpty) {
       contentTitle = unreadCount > 1
           ? '@$senderUsername ($unreadCount)'
@@ -228,9 +224,10 @@ class NotificationService {
       visibility: NotificationVisibility.public,
       category: AndroidNotificationCategory.message,
       channelShowBadge: true,
-      onlyAlertOnce: false, // Plays sound/vibration on new message while updating card
+      onlyAlertOnce:
+          false, // Plays sound/vibration on new message while updating card
       fullScreenIntent: false,
-      icon: '@mipmap/ic_launcher',
+      icon: '@drawable/ic_stat_notification',
       ticker: contentTitle,
       styleInformation: styleInfo,
     );
@@ -239,8 +236,9 @@ class NotificationService {
       presentAlert: true,
       presentBadge: true,
       presentSound: true,
-      threadIdentifier:
-          conversationId != null ? 'anonapp_conv_$conversationId' : null,
+      threadIdentifier: conversationId != null
+          ? 'anonapp_conv_$conversationId'
+          : null,
     );
 
     final details = NotificationDetails(
@@ -293,7 +291,7 @@ class NotificationService {
     await _notificationsPlugin.cancelAll();
   }
 
-  /// Handler when a user taps on a notification.
+  /// Handler when a user taps on a local notification.
   void _handleNotificationTap(NotificationResponse response) {
     final payloadString = response.payload;
     if (payloadString == null || payloadString.isEmpty) return;
@@ -304,15 +302,22 @@ class NotificationService {
       final username = data['username'] as String? ?? '';
 
       if (conversationId != null && conversationId.isNotEmpty) {
+        final encodedUsername = Uri.encodeComponent(username);
+        final targetPath = '/chat/$conversationId?username=$encodedUsername';
+
         final context = rootNavigatorKey.currentContext;
         if (context != null && context.mounted) {
-          context.push('/chat/$conversationId?username=$username');
+          context.push(targetPath);
         } else {
-          // If navigator is initializing, retry after brief delay
-          Future.delayed(const Duration(milliseconds: 600), () {
+          int attempts = 0;
+          Timer.periodic(const Duration(milliseconds: 250), (timer) {
+            attempts++;
             final ctx = rootNavigatorKey.currentContext;
             if (ctx != null && ctx.mounted) {
-              ctx.push('/chat/$conversationId?username=$username');
+              timer.cancel();
+              ctx.push(targetPath);
+            } else if (attempts >= 10) {
+              timer.cancel();
             }
           });
         }

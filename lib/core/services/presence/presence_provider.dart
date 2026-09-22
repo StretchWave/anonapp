@@ -102,9 +102,9 @@ final presenceSyncProvider = Provider<PresenceSyncManager>((ref) {
 class PresenceSyncManager with WidgetsBindingObserver {
   PresenceSyncManager(
     this._service, {
-    Ref? ref,
+    this._ref,
     this.debounceDuration = const Duration(milliseconds: 1500),
-  }) : _ref = ref { // ignore: prefer_initializing_formals
+  }) {
     WidgetsBinding.instance.addObserver(this);
     if (_ref != null) {
       _init();
@@ -149,7 +149,9 @@ class PresenceSyncManager with WidgetsBindingObserver {
             }
           }
           if (updates.isNotEmpty) {
-            ref.read(userLastSeenProvider.notifier).recordMultipleLastSeen(updates);
+            ref
+                .read(userLastSeenProvider.notifier)
+                .recordMultipleLastSeen(updates);
           }
         }
       },

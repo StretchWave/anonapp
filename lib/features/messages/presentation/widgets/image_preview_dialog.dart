@@ -135,7 +135,10 @@ class _ImagePreviewDialogState extends State<ImagePreviewDialog> {
               decoration: BoxDecoration(
                 color: AppColors.accent.withAlpha(35),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.accent.withAlpha(90), width: 1),
+                border: Border.all(
+                  color: AppColors.accent.withAlpha(90),
+                  width: 1,
+                ),
               ),
               child: const Row(
                 children: [
@@ -240,10 +243,14 @@ class _ImagePreviewDialogState extends State<ImagePreviewDialog> {
                 const SizedBox(width: 12),
                 FloatingActionButton(
                   onPressed: _handleSend,
-                  backgroundColor: _isViewOnce ? AppColors.accent : AppColors.primary,
+                  backgroundColor: _isViewOnce
+                      ? AppColors.accent
+                      : AppColors.primary,
                   foregroundColor: Colors.white,
                   tooltip: _isViewOnce ? 'Send view-once photo' : 'Send photo',
-                  child: Icon(_isViewOnce ? Icons.looks_one_rounded : Icons.send_rounded),
+                  child: Icon(
+                    _isViewOnce ? Icons.looks_one_rounded : Icons.send_rounded,
+                  ),
                 ),
               ],
             ),

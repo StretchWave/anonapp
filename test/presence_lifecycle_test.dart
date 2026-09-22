@@ -86,39 +86,40 @@ class FakePresenceService implements PresenceService {
 
 void main() {
   group('Presence & Lifecycle State Tests', () {
-    test('isUserOnlineProvider returns true only when userId is in online set', () async {
-      final fakeService = FakePresenceService();
-      final container = ProviderContainer(
-        overrides: [
-          presenceServiceProvider.overrideWithValue(fakeService),
-        ],
-      );
-      addTearDown(container.dispose);
+    test(
+      'isUserOnlineProvider returns true only when userId is in online set',
+      () async {
+        final fakeService = FakePresenceService();
+        final container = ProviderContainer(
+          overrides: [presenceServiceProvider.overrideWithValue(fakeService)],
+        );
+        addTearDown(container.dispose);
 
-      // Initially empty
-      expect(container.read(isUserOnlineProvider('alice')), isFalse);
-      expect(container.read(isUserOnlineProvider('bob')), isFalse);
-      expect(container.read(isUserOnlineProvider(null)), isFalse);
-      expect(container.read(isUserOnlineProvider('')), isFalse);
+        // Initially empty
+        expect(container.read(isUserOnlineProvider('alice')), isFalse);
+        expect(container.read(isUserOnlineProvider('bob')), isFalse);
+        expect(container.read(isUserOnlineProvider(null)), isFalse);
+        expect(container.read(isUserOnlineProvider('')), isFalse);
 
-      // Alice comes online
-      fakeService.emitOnlineUsers({'alice'});
-      await pumpEventQueue();
-      expect(container.read(isUserOnlineProvider('alice')), isTrue);
-      expect(container.read(isUserOnlineProvider('bob')), isFalse);
+        // Alice comes online
+        fakeService.emitOnlineUsers({'alice'});
+        await pumpEventQueue();
+        expect(container.read(isUserOnlineProvider('alice')), isTrue);
+        expect(container.read(isUserOnlineProvider('bob')), isFalse);
 
-      // Bob also comes online
-      fakeService.emitOnlineUsers({'alice', 'bob'});
-      await pumpEventQueue();
-      expect(container.read(isUserOnlineProvider('alice')), isTrue);
-      expect(container.read(isUserOnlineProvider('bob')), isTrue);
+        // Bob also comes online
+        fakeService.emitOnlineUsers({'alice', 'bob'});
+        await pumpEventQueue();
+        expect(container.read(isUserOnlineProvider('alice')), isTrue);
+        expect(container.read(isUserOnlineProvider('bob')), isTrue);
 
-      // Alice goes offline (minimizes, closes app, switches tab, locks screen)
-      fakeService.emitOnlineUsers({'bob'});
-      await pumpEventQueue();
-      expect(container.read(isUserOnlineProvider('alice')), isFalse);
-      expect(container.read(isUserOnlineProvider('bob')), isTrue);
-    });
+        // Alice goes offline (minimizes, closes app, switches tab, locks screen)
+        fakeService.emitOnlineUsers({'bob'});
+        await pumpEventQueue();
+        expect(container.read(isUserOnlineProvider('alice')), isFalse);
+        expect(container.read(isUserOnlineProvider('bob')), isTrue);
+      },
+    );
 
     test('Lifecycle state changes correctly trigger online vs offline', () {
       final fakeService = FakePresenceService();
@@ -162,118 +163,135 @@ void main() {
       expect(fakeService.setOnlineCallCount, equals(2));
     });
 
-    test('PresenceSyncManager debounces offline transitions during brief inactive states', () async {
-      final fakeService = FakePresenceService();
+    test(
+      'PresenceSyncManager debounces offline transitions during brief inactive states',
+      () async {
+        final fakeService = FakePresenceService();
 
-      final manager = PresenceSyncManager(
-        fakeService,
-        debounceDuration: const Duration(milliseconds: 50),
-      );
-      addTearDown(manager.dispose);
+        final manager = PresenceSyncManager(
+          fakeService,
+          debounceDuration: const Duration(milliseconds: 50),
+        );
+        addTearDown(manager.dispose);
 
-      // App starts online
-      manager.didChangeAppLifecycleState(AppLifecycleState.resumed);
-      expect(fakeService.setOnlineCallCount, equals(1));
-      expect(fakeService.setOfflineCallCount, equals(0));
+        // App starts online
+        manager.didChangeAppLifecycleState(AppLifecycleState.resumed);
+        expect(fakeService.setOnlineCallCount, equals(1));
+        expect(fakeService.setOfflineCallCount, equals(0));
 
-      // User pulls down notification shade (inactive)
-      manager.didChangeAppLifecycleState(AppLifecycleState.inactive);
-      // Immediately, offline should NOT have been called yet because of the grace period
-      expect(fakeService.setOfflineCallCount, equals(0));
+        // User pulls down notification shade (inactive)
+        manager.didChangeAppLifecycleState(AppLifecycleState.inactive);
+        // Immediately, offline should NOT have been called yet because of the grace period
+        expect(fakeService.setOfflineCallCount, equals(0));
 
-      // User puts away notification shade quickly (resumed within 10ms < 50ms grace)
-      await Future<void>.delayed(const Duration(milliseconds: 10));
-      manager.didChangeAppLifecycleState(AppLifecycleState.resumed);
+        // User puts away notification shade quickly (resumed within 10ms < 50ms grace)
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+        manager.didChangeAppLifecycleState(AppLifecycleState.resumed);
 
-      // Wait past the original 50ms window
-      await Future<void>.delayed(const Duration(milliseconds: 60));
+        // Wait past the original 50ms window
+        await Future<void>.delayed(const Duration(milliseconds: 60));
 
-      // Offline call was suppressed!
-      expect(fakeService.setOfflineCallCount, equals(0));
-      expect(fakeService.setOnlineCallCount, equals(2));
-    });
+        // Offline call was suppressed!
+        expect(fakeService.setOfflineCallCount, equals(0));
+        expect(fakeService.setOnlineCallCount, equals(2));
+      },
+    );
 
-    test('PresenceSyncManager triggers setOffline after debounce duration expires', () async {
-      final fakeService = FakePresenceService();
+    test(
+      'PresenceSyncManager triggers setOffline after debounce duration expires',
+      () async {
+        final fakeService = FakePresenceService();
 
-      final manager = PresenceSyncManager(
-        fakeService,
-        debounceDuration: const Duration(milliseconds: 40),
-      );
-      addTearDown(manager.dispose);
+        final manager = PresenceSyncManager(
+          fakeService,
+          debounceDuration: const Duration(milliseconds: 40),
+        );
+        addTearDown(manager.dispose);
 
-      manager.didChangeAppLifecycleState(AppLifecycleState.resumed);
-      expect(fakeService.setOnlineCallCount, equals(1));
+        manager.didChangeAppLifecycleState(AppLifecycleState.resumed);
+        expect(fakeService.setOnlineCallCount, equals(1));
 
-      // App minimized (paused)
-      manager.didChangeAppLifecycleState(AppLifecycleState.paused);
-      expect(fakeService.setOfflineCallCount, equals(0));
+        // App minimized (paused)
+        manager.didChangeAppLifecycleState(AppLifecycleState.paused);
+        expect(fakeService.setOfflineCallCount, equals(0));
 
-      // Wait past debounce timer
-      await Future<void>.delayed(const Duration(milliseconds: 60));
-      expect(fakeService.setOfflineCallCount, equals(1));
-    });
+        // Wait past debounce timer
+        await Future<void>.delayed(const Duration(milliseconds: 60));
+        expect(fakeService.setOfflineCallCount, equals(1));
+      },
+    );
 
-    test('PresenceSyncManager immediately calls setOffline on detached without debounce', () {
-      final fakeService = FakePresenceService();
+    test(
+      'PresenceSyncManager immediately calls setOffline on detached without debounce',
+      () {
+        final fakeService = FakePresenceService();
 
-      final manager = PresenceSyncManager(
-        fakeService,
-        debounceDuration: const Duration(seconds: 10),
-      );
-      addTearDown(manager.dispose);
+        final manager = PresenceSyncManager(
+          fakeService,
+          debounceDuration: const Duration(seconds: 10),
+        );
+        addTearDown(manager.dispose);
 
-      manager.didChangeAppLifecycleState(AppLifecycleState.detached);
-      expect(fakeService.setOfflineCallCount, equals(1));
-    });
+        manager.didChangeAppLifecycleState(AppLifecycleState.detached);
+        expect(fakeService.setOfflineCallCount, equals(1));
+      },
+    );
 
-    test('Strict presence: isUserOnlineProvider relies strictly on Realtime presence', () async {
-      final fakeService = FakePresenceService();
-      final container = ProviderContainer(
-        overrides: [
-          presenceServiceProvider.overrideWithValue(fakeService),
-        ],
-      );
-      addTearDown(container.dispose);
+    test(
+      'Strict presence: isUserOnlineProvider relies strictly on Realtime presence',
+      () async {
+        final fakeService = FakePresenceService();
+        final container = ProviderContainer(
+          overrides: [presenceServiceProvider.overrideWithValue(fakeService)],
+        );
+        addTearDown(container.dispose);
 
-      // User 'charlie' is NOT in WebSocket presence
-      expect(container.read(isUserOnlineProvider('charlie')), isFalse);
+        // User 'charlie' is NOT in WebSocket presence
+        expect(container.read(isUserOnlineProvider('charlie')), isFalse);
 
-      // Even if activity was recorded 30 seconds ago, user is offline if not in presence
-      container.read(userLastSeenProvider.notifier).recordLastSeen(
-        'charlie',
-        DateTime.now().toUtc().subtract(const Duration(seconds: 30)),
-      );
+        // Even if activity was recorded 30 seconds ago, user is offline if not in presence
+        container
+            .read(userLastSeenProvider.notifier)
+            .recordLastSeen(
+              'charlie',
+              DateTime.now().toUtc().subtract(const Duration(seconds: 30)),
+            );
 
-      // Offline because WebSocket presence is the single source of truth
-      expect(container.read(isUserOnlineProvider('charlie')), isFalse);
+        // Offline because WebSocket presence is the single source of truth
+        expect(container.read(isUserOnlineProvider('charlie')), isFalse);
 
-      // When added to presence, user is online
-      fakeService.emitOnlineUsers({'charlie'});
-      await pumpEventQueue();
-      expect(container.read(isUserOnlineProvider('charlie')), isTrue);
-    });
+        // When added to presence, user is online
+        fakeService.emitOnlineUsers({'charlie'});
+        await pumpEventQueue();
+        expect(container.read(isUserOnlineProvider('charlie')), isTrue);
+      },
+    );
 
-    test('Privacy setting toggle immediately sets user offline when disabled', () async {
-      final fakeService = FakePresenceService();
+    test(
+      'Privacy setting toggle immediately sets user offline when disabled',
+      () async {
+        final fakeService = FakePresenceService();
 
-      await fakeService.initialize(userId: 'my-user-id', canShowOnline: true);
-      expect(fakeService.isTracking, isTrue);
+        await fakeService.initialize(userId: 'my-user-id', canShowOnline: true);
+        expect(fakeService.isTracking, isTrue);
 
-      // User toggles "Show Online Status" OFF
-      await fakeService.updatePrivacySetting(false);
-      expect(fakeService.isTracking, isFalse);
-      expect(fakeService.setOfflineCallCount, equals(1));
+        // User toggles "Show Online Status" OFF
+        await fakeService.updatePrivacySetting(false);
+        expect(fakeService.isTracking, isFalse);
+        expect(fakeService.setOfflineCallCount, equals(1));
 
-      // User toggles "Show Online Status" back ON
-      await fakeService.updatePrivacySetting(true);
-      expect(fakeService.isTracking, isTrue);
-      expect(fakeService.setOnlineCallCount, equals(2));
-    });
+        // User toggles "Show Online Status" back ON
+        await fakeService.updatePrivacySetting(true);
+        expect(fakeService.isTracking, isTrue);
+        expect(fakeService.setOnlineCallCount, equals(2));
+      },
+    );
   });
 
   group('ConversationTile UI Online/Offline Indicator Tests', () {
-    testWidgets('Renders glowing green dot when other member is online', (tester) async {
+    testWidgets('Renders glowing green dot when other member is online', (
+      tester,
+    ) async {
       final fakeService = FakePresenceService();
       fakeService.emitOnlineUsers({'user-other'});
 
@@ -289,7 +307,9 @@ void main() {
         ProviderScope(
           overrides: [
             presenceServiceProvider.overrideWithValue(fakeService),
-            conversationsProvider.overrideWith((ref) async => [testConversation]),
+            conversationsProvider.overrideWith(
+              (ref) async => [testConversation],
+            ),
           ],
           child: MaterialApp(
             home: Scaffold(
@@ -311,7 +331,9 @@ void main() {
       expect(onlineDot, findsOneWidget);
     });
 
-    testWidgets('Renders offline grey dot when other member is offline', (tester) async {
+    testWidgets('Renders offline grey dot when other member is offline', (
+      tester,
+    ) async {
       final fakeService = FakePresenceService();
       // 'user-other' is NOT in the online set
 
@@ -327,7 +349,9 @@ void main() {
         ProviderScope(
           overrides: [
             presenceServiceProvider.overrideWithValue(fakeService),
-            conversationsProvider.overrideWith((ref) async => [testConversation]),
+            conversationsProvider.overrideWith(
+              (ref) async => [testConversation],
+            ),
           ],
           child: MaterialApp(
             home: Scaffold(

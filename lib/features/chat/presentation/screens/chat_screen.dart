@@ -62,8 +62,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       if (mounted) setState(() {});
     });
     // Dismiss notifications for this conversation upon entering
-    NotificationService.instance
-        .clearNotificationsForConversation(widget.conversationId);
+    NotificationService.instance.clearNotificationsForConversation(
+      widget.conversationId,
+    );
 
     // Track active chat, mark unread messages as read in DB and update chats section immediately
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -104,8 +105,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       ref
           .read(locallyReadConversationIdsProvider.notifier)
           .update((s) => {...s, widget.conversationId});
-      NotificationService.instance
-          .clearNotificationsForConversation(widget.conversationId);
+      NotificationService.instance.clearNotificationsForConversation(
+        widget.conversationId,
+      );
     } else if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.inactive ||
         state == AppLifecycleState.hidden) {
@@ -129,15 +131,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         .select('user_id')
         .eq('conversation_id', widget.conversationId)
         .then((rows) {
-      final currentUserId = SupabaseService.client.auth.currentUser?.id;
-      for (final row in rows) {
-        final uid = row['user_id'] as String;
-        if (uid != currentUserId && mounted) {
-          setState(() => _resolvedOtherUserId = uid);
-          break;
-        }
-      }
-    }).catchError((_) {});
+          final currentUserId = SupabaseService.client.auth.currentUser?.id;
+          for (final row in rows) {
+            final uid = row['user_id'] as String;
+            if (uid != currentUserId && mounted) {
+              setState(() => _resolvedOtherUserId = uid);
+              break;
+            }
+          }
+        })
+        .catchError((_) {});
   }
 
   void _onScroll() {
@@ -177,16 +180,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     final isOtherTyping = ref.watch(
       otherUserTypingProvider(widget.conversationId),
     );
-    final activeReply = ref.watch(
-      activeReplyProvider(widget.conversationId),
-    );
-    final isOtherOnline = _resolvedOtherUserId != null &&
+    final activeReply = ref.watch(activeReplyProvider(widget.conversationId));
+    final isOtherOnline =
+        _resolvedOtherUserId != null &&
         ref.watch(isUserOnlineProvider(_resolvedOtherUserId));
 
     final displayTitle = widget.otherUsername != null
         ? '@${widget.otherUsername}'
         : 'Anonymous Chat';
-    final initial = widget.otherUsername != null && widget.otherUsername!.isNotEmpty
+    final initial =
+        widget.otherUsername != null && widget.otherUsername!.isNotEmpty
         ? widget.otherUsername![0].toUpperCase()
         : '?';
 
@@ -304,8 +307,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                 color: isOtherTyping
                                     ? AppColors.primaryLight
                                     : (isOtherOnline
-                                        ? AppColors.online
-                                        : AppColors.offline),
+                                          ? AppColors.online
+                                          : AppColors.offline),
                                 shape: BoxShape.circle,
                                 boxShadow: (isOtherOnline && !isOtherTyping)
                                     ? [
@@ -324,15 +327,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                               isOtherTyping
                                   ? 'typing...'
                                   : (isOtherOnline
-                                      ? 'Online · E2EE'
-                                      : 'Offline · E2EE'),
+                                        ? 'Online · E2EE'
+                                        : 'Offline · E2EE'),
                               style: TextStyle(
                                 fontSize: 11,
                                 color: isOtherTyping
                                     ? AppColors.primaryLight
                                     : (isOtherOnline
-                                        ? AppColors.online
-                                        : AppColors.textMutedDark),
+                                          ? AppColors.online
+                                          : AppColors.textMutedDark),
                                 fontWeight: FontWeight.w500,
                                 fontStyle: isOtherTyping
                                     ? FontStyle.italic
@@ -379,7 +382,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
               color: AppColors.surfaceDark,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
-                side: const BorderSide(color: AppColors.surfaceBorder, width: 1),
+                side: const BorderSide(
+                  color: AppColors.surfaceBorder,
+                  width: 1,
+                ),
               ),
               onSelected: (value) {
                 switch (value) {
@@ -489,7 +495,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                   value: 'report_user',
                   child: Row(
                     children: [
-                      Icon(Icons.flag_outlined, color: AppColors.error, size: 18),
+                      Icon(
+                        Icons.flag_outlined,
+                        color: AppColors.error,
+                        size: 18,
+                      ),
                       SizedBox(width: 12),
                       Text(
                         'Report User',
@@ -502,7 +512,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                   value: 'block_user',
                   child: Row(
                     children: [
-                      Icon(Icons.block_rounded, color: AppColors.error, size: 18),
+                      Icon(
+                        Icons.block_rounded,
+                        color: AppColors.error,
+                        size: 18,
+                      ),
                       SizedBox(width: 12),
                       Text(
                         'Block User',
@@ -666,8 +680,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                             spacing: 8,
                             runSpacing: 8,
                             alignment: WrapAlignment.center,
-                            children: ChatScreen._conversationStarters
-                                .map((starter) {
+                            children: ChatScreen._conversationStarters.map((
+                              starter,
+                            ) {
                               return ActionChip(
                                 label: Text(
                                   starter,
@@ -722,8 +737,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                               senderName: msg.isMine(currentUserId)
                                   ? 'You'
                                   : (widget.otherUsername != null
-                                      ? '@${widget.otherUsername}'
-                                      : 'Anon'),
+                                        ? '@${widget.otherUsername}'
+                                        : 'Anon'),
                             );
                           },
                           onDelete: () =>
@@ -796,8 +811,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             replyMessage: activeReply,
             onCancelReply: () {
               ref
-                  .read(activeReplyProvider(widget.conversationId).notifier)
-                  .state = null;
+                      .read(activeReplyProvider(widget.conversationId).notifier)
+                      .state =
+                  null;
             },
             onTyping: () => messagesNotifier.sendTyping(),
             onSend: (text) {
@@ -808,8 +824,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 replyToSender: activeReply?.senderName,
               );
               ref
-                  .read(activeReplyProvider(widget.conversationId).notifier)
-                  .state = null;
+                      .read(activeReplyProvider(widget.conversationId).notifier)
+                      .state =
+                  null;
             },
             onSendImage: (base64Img, caption, isViewOnce) {
               messagesNotifier.sendImageMessage(
@@ -821,8 +838,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 replyToSender: activeReply?.senderName,
               );
               ref
-                  .read(activeReplyProvider(widget.conversationId).notifier)
-                  .state = null;
+                      .read(activeReplyProvider(widget.conversationId).notifier)
+                      .state =
+                  null;
             },
             onSendVoice: (base64Audio, durationMs) {
               messagesNotifier.sendVoiceMessage(
@@ -833,8 +851,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 replyToSender: activeReply?.senderName,
               );
               ref
-                  .read(activeReplyProvider(widget.conversationId).notifier)
-                  .state = null;
+                      .read(activeReplyProvider(widget.conversationId).notifier)
+                      .state =
+                  null;
             },
             onSendDocument: (base64Doc, fileName, fileSize, ext) {
               messagesNotifier.sendDocumentMessage(
@@ -847,8 +866,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 replyToSender: activeReply?.senderName,
               );
               ref
-                  .read(activeReplyProvider(widget.conversationId).notifier)
-                  .state = null;
+                      .read(activeReplyProvider(widget.conversationId).notifier)
+                      .state =
+                  null;
             },
           ),
         ],

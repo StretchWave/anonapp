@@ -291,20 +291,20 @@ class MessageBubble extends ConsumerWidget {
           decoration: BoxDecoration(
             color: wasViewed
                 ? (isMine
-                    ? Colors.black.withValues(alpha: 0.15)
-                    : AppColors.surfaceVariantDark.withValues(alpha: 0.5))
+                      ? Colors.black.withValues(alpha: 0.15)
+                      : AppColors.surfaceVariantDark.withValues(alpha: 0.5))
                 : (isMine
-                    ? AppColors.accent.withValues(alpha: 0.2)
-                    : AppColors.primary.withValues(alpha: 0.25)),
+                      ? AppColors.accent.withValues(alpha: 0.2)
+                      : AppColors.primary.withValues(alpha: 0.25)),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: wasViewed
                   ? (isMine
-                      ? Colors.white.withValues(alpha: 0.15)
-                      : AppColors.surfaceBorder)
+                        ? Colors.white.withValues(alpha: 0.15)
+                        : AppColors.surfaceBorder)
                   : (isMine
-                      ? AppColors.accent.withValues(alpha: 0.5)
-                      : AppColors.primaryLight.withValues(alpha: 0.5)),
+                        ? AppColors.accent.withValues(alpha: 0.5)
+                        : AppColors.primaryLight.withValues(alpha: 0.5)),
               width: 1,
             ),
           ),
@@ -315,8 +315,8 @@ class MessageBubble extends ConsumerWidget {
                 wasViewed
                     ? Icons.lock_clock_outlined
                     : (isMine
-                        ? Icons.looks_one_rounded
-                        : Icons.local_fire_department_rounded),
+                          ? Icons.looks_one_rounded
+                          : Icons.local_fire_department_rounded),
                 color: wasViewed
                     ? (isMine ? Colors.white54 : AppColors.textMutedDark)
                     : (isMine ? AppColors.accent : AppColors.primaryLight),
@@ -340,16 +340,16 @@ class MessageBubble extends ConsumerWidget {
                   Text(
                     wasViewed
                         ? (isMine
-                            ? 'Opened by recipient'
-                            : 'Removed • Already viewed')
+                              ? 'Opened by recipient'
+                              : 'Removed • Already viewed')
                         : (isMine ? 'Sent • 1 View' : 'Tap to open'),
                     style: TextStyle(
                       fontSize: 11,
                       color: wasViewed
                           ? (isMine ? Colors.white38 : AppColors.textMutedDark)
                           : (isMine
-                              ? AppColors.accent
-                              : AppColors.primaryLight),
+                                ? AppColors.accent
+                                : AppColors.primaryLight),
                     ),
                   ),
                 ],
@@ -388,7 +388,8 @@ class MessageBubble extends ConsumerWidget {
     }
 
     try {
-      final fileName = message.documentFileName ?? 'document_${message.id.substring(0, 8)}';
+      final fileName =
+          message.documentFileName ?? 'document_${message.id.substring(0, 8)}';
       var clean = message.mediaData!.trim();
       if (clean.contains(',')) clean = clean.split(',').last;
       final bytes = base64Decode(clean);
@@ -520,14 +521,18 @@ class MessageBubble extends ConsumerWidget {
                         _formatFileSize(fileSize),
                         style: TextStyle(
                           fontSize: 11,
-                          color: isMine ? Colors.white70 : AppColors.textMutedDark,
+                          color: isMine
+                              ? Colors.white70
+                              : AppColors.textMutedDark,
                         ),
                       ),
                       const SizedBox(width: 6),
                       Icon(
                         Icons.download_rounded,
                         size: 13,
-                        color: isMine ? Colors.white60 : AppColors.textMutedDark,
+                        color: isMine
+                            ? Colors.white60
+                            : AppColors.textMutedDark,
                       ),
                     ],
                   ),

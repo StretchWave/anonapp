@@ -42,7 +42,8 @@ class ChatInputBar extends StatefulWidget {
     String fileName,
     int fileSize,
     String? extension,
-  )? onSendDocument;
+  )?
+  onSendDocument;
   final bool enabled;
   final ReplyMessageInfo? replyMessage;
   final VoidCallback? onCancelReply;

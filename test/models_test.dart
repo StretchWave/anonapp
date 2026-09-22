@@ -266,6 +266,5 @@ void main() {
       expect(doc2.documentFileSize, 204800);
       expect(doc2.displayText, '📄 audit_report.docx');
     });
-
   });
 }

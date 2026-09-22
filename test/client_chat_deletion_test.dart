@@ -89,25 +89,34 @@ void main() {
       );
 
       expect(
-        await service.getDeletionTimestamp(userId: userA, conversationId: convId1),
+        await service.getDeletionTimestamp(
+          userId: userA,
+          conversationId: convId1,
+        ),
         equals(time1),
       );
       expect(
-        await service.getDeletionTimestamp(userId: userA, conversationId: convId2),
+        await service.getDeletionTimestamp(
+          userId: userA,
+          conversationId: convId2,
+        ),
         equals(time2),
       );
 
       // Restore convId1
-      await service.restoreConversation(
-        userId: userA,
-        conversationId: convId1,
-      );
+      await service.restoreConversation(userId: userA, conversationId: convId1);
       expect(
-        await service.getDeletionTimestamp(userId: userA, conversationId: convId1),
+        await service.getDeletionTimestamp(
+          userId: userA,
+          conversationId: convId1,
+        ),
         isNull,
       );
       expect(
-        await service.getDeletionTimestamp(userId: userA, conversationId: convId2),
+        await service.getDeletionTimestamp(
+          userId: userA,
+          conversationId: convId2,
+        ),
         equals(time2),
       );
     });
@@ -135,69 +144,78 @@ void main() {
       updatedAt: DateTime.parse('2026-09-20T15:00:00.000Z'),
     );
 
-    test('filters out deleted conversation when lastMessageAt <= deletedAt', () {
-      final deletedAt = DateTime.parse('2026-09-20T12:00:00.000Z');
-      final deletedMap = {convId1: deletedAt};
+    test(
+      'filters out deleted conversation when lastMessageAt <= deletedAt',
+      () {
+        final deletedAt = DateTime.parse('2026-09-20T12:00:00.000Z');
+        final deletedMap = {convId1: deletedAt};
 
-      final conversations = [baseConversation, secondConversation];
+        final conversations = [baseConversation, secondConversation];
 
-      final filtered = conversations.where((c) {
-        final d = deletedMap[c.id];
-        if (d == null) return true;
-        if (c.lastMessageAt == null) return false;
-        return c.lastMessageAt!.isAfter(d);
-      }).toList();
+        final filtered = conversations.where((c) {
+          final d = deletedMap[c.id];
+          if (d == null) return true;
+          if (c.lastMessageAt == null) return false;
+          return c.lastMessageAt!.isAfter(d);
+        }).toList();
 
-      expect(filtered.length, 1);
-      expect(filtered.first.id, convId2);
-    });
+        expect(filtered.length, 1);
+        expect(filtered.first.id, convId2);
+      },
+    );
 
-    test('re-displays conversation when a new message arrives after deletedAt', () {
-      final deletedAt = DateTime.parse('2026-09-20T12:00:00.000Z');
-      final deletedMap = {convId1: deletedAt};
+    test(
+      're-displays conversation when a new message arrives after deletedAt',
+      () {
+        final deletedAt = DateTime.parse('2026-09-20T12:00:00.000Z');
+        final deletedMap = {convId1: deletedAt};
 
-      // New message arrived at 13:00, after deletion at 12:00
-      final updatedConversation = baseConversation.copyWith(
-        lastMessageAt: DateTime.parse('2026-09-20T13:00:00.000Z'),
-      );
+        // New message arrived at 13:00, after deletion at 12:00
+        final updatedConversation = baseConversation.copyWith(
+          lastMessageAt: DateTime.parse('2026-09-20T13:00:00.000Z'),
+        );
 
-      final conversations = [updatedConversation, secondConversation];
+        final conversations = [updatedConversation, secondConversation];
 
-      final filtered = conversations.where((c) {
-        final d = deletedMap[c.id];
-        if (d == null) return true;
-        if (c.lastMessageAt == null) return false;
-        return c.lastMessageAt!.isAfter(d);
-      }).toList();
+        final filtered = conversations.where((c) {
+          final d = deletedMap[c.id];
+          if (d == null) return true;
+          if (c.lastMessageAt == null) return false;
+          return c.lastMessageAt!.isAfter(d);
+        }).toList();
 
-      expect(filtered.length, 2);
-      expect(filtered.map((c) => c.id), contains(convId1));
-    });
+        expect(filtered.length, 2);
+        expect(filtered.map((c) => c.id), contains(convId1));
+      },
+    );
 
-    test('hides conversation if deletedAt exists and lastMessageAt is null', () {
-      final deletedAt = DateTime.parse('2026-09-20T12:00:00.000Z');
-      final deletedMap = {convId1: deletedAt};
+    test(
+      'hides conversation if deletedAt exists and lastMessageAt is null',
+      () {
+        final deletedAt = DateTime.parse('2026-09-20T12:00:00.000Z');
+        final deletedMap = {convId1: deletedAt};
 
-      final emptyConversation = Conversation(
-        id: convId1,
-        otherMemberId: 'partner-1',
-        otherMemberUsername: 'Alice',
-        lastMessageAt: null,
-        createdAt: DateTime.parse('2026-09-20T10:00:00.000Z'),
-        updatedAt: DateTime.parse('2026-09-20T10:00:00.000Z'),
-      );
+        final emptyConversation = Conversation(
+          id: convId1,
+          otherMemberId: 'partner-1',
+          otherMemberUsername: 'Alice',
+          lastMessageAt: null,
+          createdAt: DateTime.parse('2026-09-20T10:00:00.000Z'),
+          updatedAt: DateTime.parse('2026-09-20T10:00:00.000Z'),
+        );
 
-      final conversations = [emptyConversation];
+        final conversations = [emptyConversation];
 
-      final filtered = conversations.where((c) {
-        final d = deletedMap[c.id];
-        if (d == null) return true;
-        if (c.lastMessageAt == null) return false;
-        return c.lastMessageAt!.isAfter(d);
-      }).toList();
+        final filtered = conversations.where((c) {
+          final d = deletedMap[c.id];
+          if (d == null) return true;
+          if (c.lastMessageAt == null) return false;
+          return c.lastMessageAt!.isAfter(d);
+        }).toList();
 
-      expect(filtered, isEmpty);
-    });
+        expect(filtered, isEmpty);
+      },
+    );
   });
 
   group('Message Filtering Logic on Client Deletion', () {

@@ -49,7 +49,9 @@ class EncryptionService {
   /// Returns true if [data] is any media encrypted by this service.
   static bool isMediaEncrypted(String? data) {
     if (data == null) return false;
-    return isImageEncrypted(data) || isAudioEncrypted(data) || isVideoEncrypted(data);
+    return isImageEncrypted(data) ||
+        isAudioEncrypted(data) ||
+        isVideoEncrypted(data);
   }
 
   final Map<String, _KeyCacheEntry> _keyCache = {};
@@ -215,10 +217,7 @@ class EncryptionService {
   }
 
   /// Convenience helper to encrypt a base64-encoded audio payload into an encrypted string.
-  Future<String> encryptAudio(
-    String base64Audio,
-    String conversationId,
-  ) async {
+  Future<String> encryptAudio(String base64Audio, String conversationId) async {
     final bytes = base64Decode(base64Audio);
     return encryptAudioBytes(bytes, conversationId);
   }
@@ -226,10 +225,7 @@ class EncryptionService {
   /// Convenience helper to decrypt an encrypted audio payload back to a base64-encoded audio string.
   /// If [ciphertext] is unencrypted (legacy audio messages), it is returned unmodified for backward compatibility.
   /// Returns null if decryption fails (e.g. key mismatch or tampered payload).
-  Future<String?> decryptAudio(
-    String ciphertext,
-    String conversationId,
-  ) async {
+  Future<String?> decryptAudio(String ciphertext, String conversationId) async {
     if (!isAudioEncrypted(ciphertext)) {
       // Legacy unencrypted base64 audio passes through unchanged
       return ciphertext;
@@ -305,10 +301,7 @@ class EncryptionService {
   }
 
   /// Convenience helper to encrypt a base64-encoded image payload into an encrypted string.
-  Future<String> encryptImage(
-    String base64Image,
-    String conversationId,
-  ) async {
+  Future<String> encryptImage(String base64Image, String conversationId) async {
     var clean = base64Image.trim();
     if (clean.contains(',')) {
       clean = clean.split(',').last;
@@ -320,10 +313,7 @@ class EncryptionService {
   /// Convenience helper to decrypt an encrypted image payload back to a base64-encoded image string.
   /// If [ciphertext] is unencrypted (legacy image messages), it is returned unmodified for backward compatibility.
   /// Returns null if decryption fails (e.g. key mismatch or tampered payload).
-  Future<String?> decryptImage(
-    String ciphertext,
-    String conversationId,
-  ) async {
+  Future<String?> decryptImage(String ciphertext, String conversationId) async {
     if (!isImageEncrypted(ciphertext)) {
       // Legacy unencrypted base64 passes through unchanged
       return ciphertext;
@@ -399,10 +389,7 @@ class EncryptionService {
   }
 
   /// Convenience helper to encrypt a base64-encoded video payload into an encrypted string.
-  Future<String> encryptVideo(
-    String base64Video,
-    String conversationId,
-  ) async {
+  Future<String> encryptVideo(String base64Video, String conversationId) async {
     var clean = base64Video.trim();
     if (clean.contains(',')) {
       clean = clean.split(',').last;
@@ -412,10 +399,7 @@ class EncryptionService {
   }
 
   /// Convenience helper to decrypt an encrypted video payload back to a base64-encoded video string.
-  Future<String?> decryptVideo(
-    String ciphertext,
-    String conversationId,
-  ) async {
+  Future<String?> decryptVideo(String ciphertext, String conversationId) async {
     if (!isVideoEncrypted(ciphertext)) {
       return ciphertext;
     }
@@ -433,4 +417,3 @@ class _KeyCacheEntry {
   final SecretKey key;
   DateTime createdAt;
 }
-

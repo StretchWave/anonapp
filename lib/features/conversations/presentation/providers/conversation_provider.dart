@@ -13,13 +13,15 @@ final conversationRepositoryProvider = Provider<ConversationRepository>((ref) {
 /// Set of conversation IDs that have been marked read locally.
 /// This allows instantaneous, 0ms clearing of unread badges in the chats section
 /// without waiting for a database roundtrip.
-final locallyReadConversationIdsProvider =
-    StateProvider<Set<String>>((ref) => <String>{});
+final locallyReadConversationIdsProvider = StateProvider<Set<String>>(
+  (ref) => <String>{},
+);
 
 /// Set of conversation IDs that have been deleted client-sided in the active session.
 /// Provides instantaneous 0ms removal from the UI while persistent storage commits.
-final locallyDeletedConversationIdsProvider =
-    StateProvider<Set<String>>((ref) => <String>{});
+final locallyDeletedConversationIdsProvider = StateProvider<Set<String>>(
+  (ref) => <String>{},
+);
 
 /// Provides the list of conversations for the current user.
 /// Call `ref.invalidate(conversationsProvider)` to refresh.

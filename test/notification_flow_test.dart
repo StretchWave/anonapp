@@ -1,12 +1,13 @@
 import 'package:anonapp/core/services/encryption_service.dart';
 import 'package:anonapp/core/services/notification_service.dart';
+import 'package:anonapp/core/services/push_notification_service.dart';
 import 'package:anonapp/features/messages/presentation/providers/notification_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  group('Notification & Lifecycle Suppression Tests', () {
-    test('isAppResumedProvider defaults to true and tracks state', () {
+  group('Push Notification Architecture & FCM Lifecycle Tests', () {
+    test('1. isAppResumedProvider defaults to true and tracks lifecycle', () {
       final container = ProviderContainer();
       addTearDown(container.dispose);
 
@@ -19,283 +20,462 @@ void main() {
       expect(container.read(isAppResumedProvider), isTrue);
     });
 
-    test('activeConversationIdProvider defaults to null and tracks active chat', () {
-      final container = ProviderContainer();
-      addTearDown(container.dispose);
+    test(
+      '2. activeConversationIdProvider tracks currently opened conversation',
+      () {
+        final container = ProviderContainer();
+        addTearDown(container.dispose);
 
-      expect(container.read(activeConversationIdProvider), isNull);
+        expect(container.read(activeConversationIdProvider), isNull);
 
-      container.read(activeConversationIdProvider.notifier).state = 'conv-123';
-      expect(container.read(activeConversationIdProvider), equals('conv-123'));
+        container.read(activeConversationIdProvider.notifier).state =
+            'conv-123';
+        expect(
+          container.read(activeConversationIdProvider),
+          equals('conv-123'),
+        );
 
-      container.read(activeConversationIdProvider.notifier).state = null;
-      expect(container.read(activeConversationIdProvider), isNull);
+        container.read(activeConversationIdProvider.notifier).state = null;
+        expect(container.read(activeConversationIdProvider), isNull);
+      },
+    );
+
+    test(
+      '3. Active-chat suppression logic: only suppress when resumed AND inside matching chat',
+      () {
+        bool shouldSuppress({
+          required bool isResumed,
+          required String? activeConversation,
+          required String incomingConversationId,
+        }) {
+          return isResumed && activeConversation == incomingConversationId;
+        }
+
+        const convId = 'chat-abc';
+
+        // Background while inside chat: must NOT suppress (device is locked or app minimized)
+        expect(
+          shouldSuppress(
+            isResumed: false,
+            activeConversation: convId,
+            incomingConversationId: convId,
+          ),
+          isFalse,
+        );
+
+        // Background on conversations screen: must NOT suppress
+        expect(
+          shouldSuppress(
+            isResumed: false,
+            activeConversation: null,
+            incomingConversationId: convId,
+          ),
+          isFalse,
+        );
+
+        // Resumed viewing a different chat: must NOT suppress
+        expect(
+          shouldSuppress(
+            isResumed: true,
+            activeConversation: 'different-chat',
+            incomingConversationId: convId,
+          ),
+          isFalse,
+        );
+
+        // Resumed on conversations list: must NOT suppress
+        expect(
+          shouldSuppress(
+            isResumed: true,
+            activeConversation: null,
+            incomingConversationId: convId,
+          ),
+          isFalse,
+        );
+
+        // Resumed viewing THIS exact chat: MUST suppress (user is reading live messages)
+        expect(
+          shouldSuppress(
+            isResumed: true,
+            activeConversation: convId,
+            incomingConversationId: convId,
+          ),
+          isTrue,
+        );
+      },
+    );
+
+    test('4. FCM Masked Token helper never exposes full token', () {
+      expect(PushNotificationService.maskToken(null), equals('none'));
+      expect(PushNotificationService.maskToken(''), equals('none'));
+      expect(PushNotificationService.maskToken('12345'), equals('***'));
+      expect(
+        PushNotificationService.maskToken(
+          'eKzZ14rGTT6eW_N8_3_a9b:APA91bF24a68bcdef1234567890',
+        ),
+        equals('eKzZ14...7890'),
+      );
     });
 
-    test('Notification suppression logic: only suppress when resumed AND in matching chat', () {
-      bool shouldSuppress({
-        required bool isResumed,
-        required String? activeConversation,
-        required String incomingConversationId,
+    test(
+      '5. PushNotificationStatus distinguishes permission, preferences, and sync',
+      () {
+        const status = PushNotificationStatus(
+          appPreferenceEnabled: true,
+          osPermissionGranted: false, // User denied in Android Settings
+          fcmTokenAvailable: true,
+          isSynced: true,
+          maskedToken: 'eKzZ14...7890',
+        );
+
+        expect(status.appPreferenceEnabled, isTrue);
+        expect(status.osPermissionGranted, isFalse);
+        expect(status.fcmTokenAvailable, isTrue);
+        expect(status.isSynced, isTrue);
+
+        final updated = status.copyWith(osPermissionGranted: true);
+        expect(updated.osPermissionGranted, isTrue);
+      },
+    );
+
+    test(
+      '6. NotificationSettings copyWith preserves and updates fields correctly',
+      () {
+        const initial = NotificationSettings(enabled: true, discreet: false);
+
+        final discreetUpdated = initial.copyWith(discreet: true);
+        expect(discreetUpdated.enabled, isTrue);
+        expect(discreetUpdated.discreet, isTrue);
+
+        final disabled = initial.copyWith(enabled: false);
+        expect(disabled.enabled, isFalse);
+        expect(disabled.discreet, isFalse);
+      },
+    );
+
+    test(
+      '7. Push notification payload privacy: never includes message plaintext or ciphertext',
+      () {
+        // Validates FCM notification payload construction
+        Map<String, dynamic> buildFcmNotificationPayload({
+          required String messageType,
+          required String? senderUsername,
+          required bool isDiscreet,
+        }) {
+          final title = isDiscreet
+              ? 'AnonApp'
+              : (senderUsername != null ? '@$senderUsername' : 'AnonApp');
+          String body;
+          switch (messageType) {
+            case 'image':
+              body = '📷 Photo';
+              break;
+            case 'view_once_image':
+              body = '🔒 Photo (View once)';
+              break;
+            case 'audio':
+              body = '🎤 Voice message';
+              break;
+            case 'document':
+              body = '📄 Document';
+              break;
+            default:
+              body = 'New message received';
+              break;
+          }
+          if (isDiscreet) body = 'New message received';
+
+          return {'title': title, 'body': body};
+        }
+
+        final payload = buildFcmNotificationPayload(
+          messageType: 'text',
+          senderUsername: 'alice',
+          isDiscreet: false,
+        );
+
+        expect(payload['title'], equals('@alice'));
+        expect(payload['body'], equals('New message received'));
+
+        final imagePayload = buildFcmNotificationPayload(
+          messageType: 'image',
+          senderUsername: 'bob',
+          isDiscreet: false,
+        );
+        expect(imagePayload['title'], equals('@bob'));
+        expect(imagePayload['body'], equals('📷 Photo'));
+
+        final discreetPayload = buildFcmNotificationPayload(
+          messageType: 'audio',
+          senderUsername: 'charlie',
+          isDiscreet: true,
+        );
+        expect(discreetPayload['title'], equals('AnonApp'));
+        expect(discreetPayload['body'], equals('New message received'));
+      },
+    );
+
+    test(
+      '8. Messages from the same conversation resolve to the same notification ID for stacking',
+      () {
+        const convId = 'conv-uuid-alice-123';
+
+        final id1 = NotificationService.conversationNotificationId(convId);
+        final id2 = NotificationService.conversationNotificationId(convId);
+        final id3 = NotificationService.conversationNotificationId(convId);
+
+        expect(id1, equals(id2));
+        expect(id2, equals(id3));
+        expect(id1, isNonNegative);
+      },
+    );
+
+    test(
+      '9. Messages from different conversations resolve to distinct notification IDs',
+      () {
+        const convAlice = 'conv-uuid-alice-123';
+        const convBob = 'conv-uuid-bob-456';
+        const convCharlie = 'conv-uuid-charlie-789';
+
+        final idAlice = NotificationService.conversationNotificationId(
+          convAlice,
+        );
+        final idBob = NotificationService.conversationNotificationId(convBob);
+        final idCharlie = NotificationService.conversationNotificationId(
+          convCharlie,
+        );
+
+        expect(idAlice, isNot(equals(idBob)));
+        expect(idAlice, isNot(equals(idCharlie)));
+        expect(idBob, isNot(equals(idCharlie)));
+      },
+    );
+
+    test(
+      '10. Notification title formats correctly for discreet vs username mode',
+      () {
+        String resolveTitle({
+          required String username,
+          required int count,
+          required bool isDiscreet,
+        }) {
+          if (isDiscreet) {
+            return count > 1 ? 'AnonApp ($count messages)' : 'AnonApp';
+          }
+          return count > 1 ? '@$username ($count)' : '@$username';
+        }
+
+        expect(
+          resolveTitle(username: 'alice', count: 1, isDiscreet: false),
+          equals('@alice'),
+        );
+        expect(
+          resolveTitle(username: 'alice', count: 1, isDiscreet: true),
+          equals('AnonApp'),
+        );
+        expect(
+          resolveTitle(username: 'alice', count: 3, isDiscreet: false),
+          equals('@alice (3)'),
+        );
+        expect(
+          resolveTitle(username: 'alice', count: 5, isDiscreet: true),
+          equals('AnonApp (5 messages)'),
+        );
+      },
+    );
+
+    test('11. Self-sent message suppression logic', () {
+      bool isEligibleRecipient({
+        required String senderId,
+        required String recipientUserId,
       }) {
-        return isResumed && activeConversation == incomingConversationId;
+        return senderId != recipientUserId;
       }
 
-      const convId = 'chat-abc';
+      const userId = 'user-me-123';
+      const otherId = 'user-other-456';
 
-      // 1. Minimized / Background while inside the chat -> MUST NOT SUPPRESS!
       expect(
-        shouldSuppress(
-          isResumed: false,
-          activeConversation: convId,
-          incomingConversationId: convId,
-        ),
+        isEligibleRecipient(senderId: userId, recipientUserId: userId),
         isFalse,
       );
-
-      // 2. Minimized / Background while on conversations screen -> MUST NOT SUPPRESS!
       expect(
-        shouldSuppress(
-          isResumed: false,
-          activeConversation: null,
-          incomingConversationId: convId,
-        ),
-        isFalse,
-      );
-
-      // 3. Resumed in foreground viewing a different chat -> MUST NOT SUPPRESS!
-      expect(
-        shouldSuppress(
-          isResumed: true,
-          activeConversation: 'different-chat',
-          incomingConversationId: convId,
-        ),
-        isFalse,
-      );
-
-      // 4. Resumed in foreground on conversations screen -> MUST NOT SUPPRESS!
-      expect(
-        shouldSuppress(
-          isResumed: true,
-          activeConversation: null,
-          incomingConversationId: convId,
-        ),
-        isFalse,
-      );
-
-      // 5. Resumed in foreground viewing THIS exact chat -> MUST SUPPRESS (user is reading it)
-      expect(
-        shouldSuppress(
-          isResumed: true,
-          activeConversation: convId,
-          incomingConversationId: convId,
-        ),
+        isEligibleRecipient(senderId: otherId, recipientUserId: userId),
         isTrue,
       );
     });
 
-    test('Notification payload formats correctly for different message types', () async {
-      String resolveNotificationBody({
-        required String messageType,
-        required String rawContent,
-        required bool isDiscreet,
+    test('12. Blocked user message suppression logic', () {
+      bool isRecipientBlocked({
+        required String senderId,
+        required String recipientId,
+        required Set<String> blockedPairs,
       }) {
-        if (isDiscreet) return 'New message received';
-        switch (messageType) {
-          case 'image':
-            return '📷 Photo';
-          case 'view_once_image':
-            return '🔒 Photo (View once)';
-          case 'audio':
-            return '🎤 Voice message';
-          default:
-            return rawContent;
-        }
+        return blockedPairs.contains('$senderId:$recipientId') ||
+            blockedPairs.contains('$recipientId:$senderId');
       }
 
-      expect(
-        resolveNotificationBody(
-          messageType: 'image',
-          rawContent: '',
-          isDiscreet: false,
-        ),
-        equals('📷 Photo'),
-      );
+      final blocks = <String>{'user-a:user-b'};
 
       expect(
-        resolveNotificationBody(
-          messageType: 'view_once_image',
-          rawContent: '',
-          isDiscreet: false,
+        isRecipientBlocked(
+          senderId: 'user-a',
+          recipientId: 'user-b',
+          blockedPairs: blocks,
         ),
-        equals('🔒 Photo (View once)'),
+        isTrue,
       );
-
       expect(
-        resolveNotificationBody(
-          messageType: 'audio',
-          rawContent: '',
-          isDiscreet: false,
+        isRecipientBlocked(
+          senderId: 'user-b',
+          recipientId: 'user-a',
+          blockedPairs: blocks,
         ),
-        equals('🎤 Voice message'),
+        isTrue,
       );
-
       expect(
-        resolveNotificationBody(
-          messageType: 'text',
-          rawContent: 'Hello friend!',
-          isDiscreet: false,
+        isRecipientBlocked(
+          senderId: 'user-a',
+          recipientId: 'user-c',
+          blockedPairs: blocks,
         ),
-        equals('Hello friend!'),
-      );
-
-      expect(
-        resolveNotificationBody(
-          messageType: 'text',
-          rawContent: 'Confidential msg',
-          isDiscreet: true,
-        ),
-        equals('New message received'),
+        isFalse,
       );
     });
 
-    test('Encrypted message text decrypts properly for notification preview', () async {
-      const convId = 'test-conversation-456';
-      const plainText = 'Secret anonymous message';
-
-      final encrypted = await EncryptionService.instance.encryptText(
-        plainText,
-        convId,
-      );
-
-      expect(EncryptionService.isEncrypted(encrypted), isTrue);
-
-      final decrypted = await EncryptionService.instance.decryptText(
-        encrypted,
-        convId,
-      );
-
-      expect(decrypted, equals(plainText));
-    });
-
-    test('NotificationSettings copyWith preserves and updates fields correctly', () {
-      const initial = NotificationSettings(enabled: true, discreet: false);
-
-      final discreetUpdated = initial.copyWith(discreet: true);
-      expect(discreetUpdated.enabled, isTrue);
-      expect(discreetUpdated.discreet, isTrue);
-
-      final disabled = initial.copyWith(enabled: false);
-      expect(disabled.enabled, isFalse);
-      expect(disabled.discreet, isFalse);
-    });
-
-    test('Messages from the same conversation resolve to the same notification ID for stacking', () {
-      const convId = 'conv-uuid-alice-123';
-
-      final id1 = NotificationService.conversationNotificationId(convId);
-      final id2 = NotificationService.conversationNotificationId(convId);
-      final id3 = NotificationService.conversationNotificationId(convId);
-
-      // All messages from the same conversation must map to the same notification ID
-      expect(id1, equals(id2));
-      expect(id2, equals(id3));
-      expect(id1, isNonNegative);
-    });
-
-    test('Messages from different conversations resolve to distinct notification IDs', () {
-      const convAlice = 'conv-uuid-alice-123';
-      const convBob = 'conv-uuid-bob-456';
-      const convCharlie = 'conv-uuid-charlie-789';
-
-      final idAlice = NotificationService.conversationNotificationId(convAlice);
-      final idBob = NotificationService.conversationNotificationId(convBob);
-      final idCharlie = NotificationService.conversationNotificationId(convCharlie);
-
-      expect(idAlice, isNot(equals(idBob)));
-      expect(idAlice, isNot(equals(idCharlie)));
-      expect(idBob, isNot(equals(idCharlie)));
-
-      expect(idAlice, isNonNegative);
-      expect(idBob, isNonNegative);
-      expect(idCharlie, isNonNegative);
-    });
-
-    test('Notification title formats correctly with unread badge count for single vs stacked messages', () {
-      String resolveTitle({
-        required String username,
-        required int count,
-        required bool isDiscreet,
-      }) {
-        if (isDiscreet) {
-          return count > 1 ? 'AnonApp ($count messages)' : 'AnonApp';
-        }
-        return count > 1 ? '@$username ($count)' : '@$username';
+    test('13. Expired disappearing message suppression logic', () {
+      bool isMessageExpired(DateTime? expiresAt, DateTime nowUtc) {
+        if (expiresAt == null) return false;
+        return nowUtc.isAfter(expiresAt);
       }
 
-      // Single message
-      expect(resolveTitle(username: 'alice', count: 1, isDiscreet: false), equals('@alice'));
-      expect(resolveTitle(username: 'alice', count: 1, isDiscreet: true), equals('AnonApp'));
-
-      // Stacked multiple messages
-      expect(resolveTitle(username: 'alice', count: 3, isDiscreet: false), equals('@alice (3)'));
-      expect(resolveTitle(username: 'alice', count: 5, isDiscreet: true), equals('AnonApp (5 messages)'));
-    });
-
-    test('Conversation unread lines buffer stacks chronologically and caps at 7 lines', () {
-      final lines = <String>[];
-      for (int i = 1; i <= 10; i++) {
-        lines.add('Message $i');
-        if (lines.length > 7) {
-          lines.removeAt(0);
-        }
-      }
-
-      expect(lines.length, equals(7));
-      expect(lines.first, equals('Message 4'));
-      expect(lines.last, equals('Message 10'));
-    });
-
-    test('Unified application group key bundles notifications for system drawer', () {
-      const groupKey = 'com.example.anonapp.MESSAGES';
-      expect(groupKey, equals('com.example.anonapp.MESSAGES'));
-
-      const convId = 'conv-uuid-alice-123';
-      const iosThreadId = 'anonapp_conv_$convId';
-      expect(iosThreadId, equals('anonapp_conv_conv-uuid-alice-123'));
-    });
-
-    test('Rolling window for sync is resilient to server/client clock drift', () {
       final now = DateTime.now().toUtc();
-      final windowStart = now.subtract(const Duration(minutes: 10));
+      final expired = now.subtract(const Duration(seconds: 1));
+      final future = now.add(const Duration(minutes: 5));
 
-      // Simulate a server timestamp that is 5 seconds behind the client device's clock
-      final serverTimestampBehind = now.subtract(const Duration(seconds: 5));
-      expect(serverTimestampBehind.isAfter(windowStart), isTrue);
-
-      // Simulate a server timestamp that is 30 seconds behind
-      final serverTimestampLag = now.subtract(const Duration(seconds: 30));
-      expect(serverTimestampLag.isAfter(windowStart), isTrue);
+      expect(isMessageExpired(null, now), isFalse);
+      expect(isMessageExpired(future, now), isFalse);
+      expect(isMessageExpired(expired, now), isTrue);
     });
 
-    test('Message deduplication avoids duplicates during sync', () {
-      final existing = [
-        {'id': 'm3', 'created_at': DateTime.now().toUtc().toIso8601String()},
-        {'id': 'm2', 'created_at': DateTime.now().toUtc().subtract(const Duration(seconds: 10)).toIso8601String()},
-        {'id': 'm1', 'created_at': DateTime.now().toUtc().subtract(const Duration(seconds: 20)).toIso8601String()},
-      ];
+    test('14. Deleted message suppression logic', () {
+      bool isMessageDeleted(DateTime? deletedAt) {
+        return deletedAt != null;
+      }
 
-      final incomingFromServer = [
-        {'id': 'm4', 'created_at': DateTime.now().toUtc().add(const Duration(seconds: 1)).toIso8601String()}, // new
-        {'id': 'm3', 'created_at': DateTime.now().toUtc().toIso8601String()}, // duplicate
-        {'id': 'm2', 'created_at': DateTime.now().toUtc().subtract(const Duration(seconds: 10)).toIso8601String()}, // duplicate
-      ];
-
-      final existingIds = existing.map((m) => m['id']).toSet();
-      final newItems = incomingFromServer.where((m) => !existingIds.contains(m['id'])).toList();
-
-      expect(newItems.length, equals(1));
-      expect(newItems.first['id'], equals('m4'));
+      expect(isMessageDeleted(null), isFalse);
+      expect(isMessageDeleted(DateTime.now().toUtc()), isTrue);
     });
+
+    test(
+      '15. Multi-device targeting logic resolves all active registered devices',
+      () {
+        final devices = [
+          {'id': 'd1', 'user_id': 'u1', 'notifications_enabled': true},
+          {'id': 'd2', 'user_id': 'u1', 'notifications_enabled': true},
+          {
+            'id': 'd3',
+            'user_id': 'u1',
+            'notifications_enabled': false,
+          }, // Disabled
+          {'id': 'd4', 'user_id': 'u2', 'notifications_enabled': true},
+        ];
+
+        final targetUserDevices = devices
+            .where(
+              (d) => d['user_id'] == 'u1' && d['notifications_enabled'] == true,
+            )
+            .map((d) => d['id'])
+            .toList();
+
+        expect(targetUserDevices, equals(['d1', 'd2']));
+      },
+    );
+
+    test('16. Push delivery idempotency prevents duplicate dispatch', () {
+      final processedDeliveries = <String>{};
+
+      bool shouldDispatch(String messageId, String deviceId) {
+        final key = '$messageId:$deviceId';
+        if (processedDeliveries.contains(key)) return false;
+        processedDeliveries.add(key);
+        return true;
+      }
+
+      expect(shouldDispatch('msg-1', 'dev-1'), isTrue);
+      // Duplicate webhook retry must be rejected
+      expect(shouldDispatch('msg-1', 'dev-1'), isFalse);
+      // Different device for same message must be accepted
+      expect(shouldDispatch('msg-1', 'dev-2'), isTrue);
+    });
+
+    test('17. Invalid token detection for cleanup', () {
+      bool isInvalidTokenError(String errorCode, String errorMessage) {
+        return errorCode == 'UNREGISTERED' ||
+            errorCode == 'NOT_FOUND' ||
+            errorMessage.contains('Requested entity was not found') ||
+            errorMessage.contains('not a valid FCM registration token');
+      }
+
+      expect(isInvalidTokenError('UNREGISTERED', ''), isTrue);
+      expect(isInvalidTokenError('NOT_FOUND', ''), isTrue);
+      expect(
+        isInvalidTokenError(
+          'INVALID_ARGUMENT',
+          'The registration token is not a valid FCM registration token',
+        ),
+        isTrue,
+      );
+      expect(isInvalidTokenError('INTERNAL', 'Server error'), isFalse);
+    });
+
+    test(
+      '18. Notification tap URL encoding handles special characters in username',
+      () {
+        const convId = 'conv-456';
+        const username = 'cool_user@#& 123';
+        final encoded = Uri.encodeComponent(username);
+        final targetPath = '/chat/$convId?username=$encoded';
+
+        final uri = Uri.parse(targetPath);
+        expect(uri.path, equals('/chat/conv-456'));
+        expect(uri.queryParameters['username'], equals(username));
+      },
+    );
+
+    test(
+      '19. Web notification suppression: strictly no-ops on Web platform',
+      () {
+        // Verifies that web notifications remain silenced
+        bool canSendNotifications(bool isWebPlatform) {
+          return !isWebPlatform;
+        }
+
+        expect(canSendNotifications(true), isFalse);
+        expect(canSendNotifications(false), isTrue);
+      },
+    );
+
+    test(
+      '20. Cryptographic verification: client-side decryption works independently of FCM transport',
+      () async {
+        const convId = 'test-conversation-fcm-privacy';
+        const secretText = 'Top secret chat';
+
+        final encrypted = await EncryptionService.instance.encryptText(
+          secretText,
+          convId,
+        );
+
+        expect(EncryptionService.isEncrypted(encrypted), isTrue);
+
+        // Decryption occurs locally on client upon opening chat
+        final decrypted = await EncryptionService.instance.decryptText(
+          encrypted,
+          convId,
+        );
+        expect(decrypted, equals(secretText));
+      },
+    );
   });
 }

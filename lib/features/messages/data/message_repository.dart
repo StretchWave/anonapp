@@ -79,10 +79,8 @@ class MessageRepository {
     }
   }
 
-  Future<Message> _decryptMessagePayload(
-    Message msg,
-    String conversationId,
-  ) => decryptMessagePayload(msg, conversationId);
+  Future<Message> _decryptMessagePayload(Message msg, String conversationId) =>
+      decryptMessagePayload(msg, conversationId);
 
   /// Decrypts text content and voice audio payloads locally for a message.
   Future<Message> decryptMessagePayload(
@@ -90,7 +88,8 @@ class MessageRepository {
     String conversationId,
   ) async {
     var result = msg;
-    if (result.content != null && EncryptionService.isEncrypted(result.content)) {
+    if (result.content != null &&
+        EncryptionService.isEncrypted(result.content)) {
       final decrypted = await EncryptionService.instance.decryptText(
         result.content!,
         conversationId,
@@ -591,16 +590,25 @@ class MessageRepository {
         'file_name': fileName,
         'file_size': fileSize,
       };
-      if (mimeType != null) mediaMeta['mime_type'] = mimeType;
-      if (replyToId != null) mediaMeta['reply_to_id'] = replyToId;
-      if (replyToContent != null) mediaMeta['reply_to_content'] = replyToContent;
-      if (replyToSender != null) mediaMeta['reply_to_sender'] = replyToSender;
+      if (mimeType != null) {
+        mediaMeta['mime_type'] = mimeType;
+      }
+      if (replyToId != null) {
+        mediaMeta['reply_to_id'] = replyToId;
+      }
+      if (replyToContent != null) {
+        mediaMeta['reply_to_content'] = replyToContent;
+      }
+      if (replyToSender != null) {
+        mediaMeta['reply_to_sender'] = replyToSender;
+      }
 
       final payload = <String, dynamic>{
         'conversation_id': conversationId,
         'sender_id': _currentUserId,
         'content': fileName,
-        'message_type': 'image', // Compatible with DB constraints; is_document meta distinguishes it
+        'message_type':
+            'image', // Compatible with DB constraints; is_document meta distinguishes it
         'media_data': encryptedDoc,
         'media_meta': mediaMeta,
         'created_at': now.toIso8601String(),

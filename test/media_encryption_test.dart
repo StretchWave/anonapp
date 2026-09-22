@@ -90,67 +90,71 @@ void main() {
       expect(decryptedB64, equals(sampleBase64Video));
     });
 
-    test('Tampered image or video ciphertext fails safely and returns null', () async {
-      final imageEnc = await EncryptionService.instance.encryptImage(
-        sampleBase64Image,
-        testConvId,
-      );
-      final tamperedImage = '${imageEnc.substring(0, imageEnc.length - 6)}AAAAAA';
-      final decryptedTamperedImage = await EncryptionService.instance.decryptImage(
-        tamperedImage,
-        testConvId,
-      );
-      expect(decryptedTamperedImage, isNull);
+    test(
+      'Tampered image or video ciphertext fails safely and returns null',
+      () async {
+        final imageEnc = await EncryptionService.instance.encryptImage(
+          sampleBase64Image,
+          testConvId,
+        );
+        final tamperedImage =
+            '${imageEnc.substring(0, imageEnc.length - 6)}AAAAAA';
+        final decryptedTamperedImage = await EncryptionService.instance
+            .decryptImage(tamperedImage, testConvId);
+        expect(decryptedTamperedImage, isNull);
 
-      final videoEnc = await EncryptionService.instance.encryptVideo(
-        sampleBase64Video,
-        testConvId,
-      );
-      final tamperedVideo = '${videoEnc.substring(0, videoEnc.length - 6)}AAAAAA';
-      final decryptedTamperedVideo = await EncryptionService.instance.decryptVideo(
-        tamperedVideo,
-        testConvId,
-      );
-      expect(decryptedTamperedVideo, isNull);
-    });
+        final videoEnc = await EncryptionService.instance.encryptVideo(
+          sampleBase64Video,
+          testConvId,
+        );
+        final tamperedVideo =
+            '${videoEnc.substring(0, videoEnc.length - 6)}AAAAAA';
+        final decryptedTamperedVideo = await EncryptionService.instance
+            .decryptVideo(tamperedVideo, testConvId);
+        expect(decryptedTamperedVideo, isNull);
+      },
+    );
 
-    test('Decrypting image or video with wrong conversation ID fails safely', () async {
-      final imageEnc = await EncryptionService.instance.encryptImage(
-        sampleBase64Image,
-        testConvId,
-      );
-      final decryptedWrongImage = await EncryptionService.instance.decryptImage(
-        imageEnc,
-        otherConvId,
-      );
-      expect(decryptedWrongImage, isNull);
+    test(
+      'Decrypting image or video with wrong conversation ID fails safely',
+      () async {
+        final imageEnc = await EncryptionService.instance.encryptImage(
+          sampleBase64Image,
+          testConvId,
+        );
+        final decryptedWrongImage = await EncryptionService.instance
+            .decryptImage(imageEnc, otherConvId);
+        expect(decryptedWrongImage, isNull);
 
-      final videoEnc = await EncryptionService.instance.encryptVideo(
-        sampleBase64Video,
-        testConvId,
-      );
-      final decryptedWrongVideo = await EncryptionService.instance.decryptVideo(
-        videoEnc,
-        otherConvId,
-      );
-      expect(decryptedWrongVideo, isNull);
-    });
+        final videoEnc = await EncryptionService.instance.encryptVideo(
+          sampleBase64Video,
+          testConvId,
+        );
+        final decryptedWrongVideo = await EncryptionService.instance
+            .decryptVideo(videoEnc, otherConvId);
+        expect(decryptedWrongVideo, isNull);
+      },
+    );
 
-    test('Legacy unencrypted media passes through unmodified for backward compatibility', () async {
-      const legacyRawBase64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+    test(
+      'Legacy unencrypted media passes through unmodified for backward compatibility',
+      () async {
+        const legacyRawBase64 =
+            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
 
-      final resultImage = await EncryptionService.instance.decryptImage(
-        legacyRawBase64,
-        testConvId,
-      );
-      expect(resultImage, equals(legacyRawBase64));
+        final resultImage = await EncryptionService.instance.decryptImage(
+          legacyRawBase64,
+          testConvId,
+        );
+        expect(resultImage, equals(legacyRawBase64));
 
-      final resultVideo = await EncryptionService.instance.decryptVideo(
-        legacyRawBase64,
-        testConvId,
-      );
-      expect(resultVideo, equals(legacyRawBase64));
-    });
+        final resultVideo = await EncryptionService.instance.decryptVideo(
+          legacyRawBase64,
+          testConvId,
+        );
+        expect(resultVideo, equals(legacyRawBase64));
+      },
+    );
 
     test('Message model properly parses reply quoting metadata', () {
       final jsonWithReply = {

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/services/app_control_service.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/app_card.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
@@ -281,6 +282,11 @@ class _NotificationsInlineSection extends ConsumerWidget {
     final settings = ref.watch(notificationSettingsProvider);
     final enabled = settings.enabled;
     final discreet = settings.discreet;
+    final statusAsync = ref.watch(pushNotificationStatusProvider);
+    final status = statusAsync.valueOrNull;
+
+    final isOsPermissionDenied =
+        !kIsWeb && enabled && status != null && !status.osPermissionGranted;
 
     return Column(
       children: [
@@ -315,6 +321,66 @@ class _NotificationsInlineSection extends ConsumerWidget {
             style: TextStyle(fontSize: 12, color: AppColors.textMutedDark),
           ),
         ),
+        if (isOsPermissionDenied) ...[
+          const Divider(height: 1, indent: 56, color: AppColors.surfaceBorder),
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0x1FFF9800),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0x66FF9800)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Row(
+                  children: [
+                    Icon(
+                      Icons.warning_amber_rounded,
+                      color: Colors.orangeAccent,
+                      size: 20,
+                    ),
+                    SizedBox(width: 8),
+                    Text(
+                      'OS Notifications Disabled',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.orangeAccent,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Notifications are blocked in Android system settings. AnonApp cannot ring or vibrate until permitted.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondaryDark,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () =>
+                        AppControlService.openNotificationSettings(),
+                    icon: const Icon(Icons.settings_outlined, size: 16),
+                    label: const Text('Open Notification Settings'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.orangeAccent,
+                      side: const BorderSide(color: Colors.orangeAccent),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
         if (enabled) ...[
           const Divider(height: 1, indent: 56, color: AppColors.surfaceBorder),
           SwitchListTile(
@@ -348,6 +414,44 @@ class _NotificationsInlineSection extends ConsumerWidget {
               style: TextStyle(fontSize: 12, color: AppColors.textMutedDark),
             ),
           ),
+          if (!kIsWeb && status != null) ...[
+            const Divider(
+              height: 1,
+              indent: 56,
+              color: AppColors.surfaceBorder,
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.cloud_done_outlined,
+                    size: 16,
+                    color: AppColors.textMutedDark,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Push: FCM v1 (${status.maskedToken ?? 'active'})',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AppColors.textMutedDark,
+                    ),
+                  ),
+                  const Spacer(),
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: status.isSynced
+                          ? Colors.greenAccent
+                          : Colors.amberAccent,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ],
     );

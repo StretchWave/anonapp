@@ -232,7 +232,10 @@ class _ViewOnceDialogState extends State<ViewOnceDialog> {
             if (_bytes != null)
               AnimatedContainer(
                 duration: const Duration(milliseconds: 250),
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: isCriticalTime
                       ? AppColors.error.withAlpha(70)

@@ -6,7 +6,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/constants/supabase_constants.dart';
 import 'presence_web_stub.dart'
-    if (dart.library.js_interop) 'presence_web.dart' as platform;
+    if (dart.library.js_interop) 'presence_web.dart'
+    as platform;
 
 /// Service managing real-time user presence (online/offline status) across
 /// mobile, desktop, and web platforms with auto-reconnection resilience.
@@ -157,11 +158,15 @@ class PresenceService {
   /// Mark the current user as ONLINE.
   Future<void> setOnline() async {
     final uid = _userId;
-    if (uid == null || !_canShowOnline || platform.isWebDocumentHidden()) return;
+    if (uid == null || !_canShowOnline || platform.isWebDocumentHidden()) {
+      return;
+    }
 
     // Check if channel is null or socket disconnected; re-establish if needed
     if (_channel == null || !_client.realtime.isConnected) {
-      debugPrint('[PresenceService] Socket or channel inactive in setOnline. Re-establishing channel...');
+      debugPrint(
+        '[PresenceService] Socket or channel inactive in setOnline. Re-establishing channel...',
+      );
       await _setupChannel(uid, _canShowOnline);
       return;
     }

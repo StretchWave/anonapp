@@ -5,10 +5,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Provider for [ClientChatDeletionService].
-final clientChatDeletionServiceProvider =
-    Provider<ClientChatDeletionService>((ref) {
-      return ClientChatDeletionService.instance;
-    });
+final clientChatDeletionServiceProvider = Provider<ClientChatDeletionService>((
+  ref,
+) {
+  return ClientChatDeletionService.instance;
+});
 
 /// Service managing client-sided chat deletion ("Delete for me").
 /// Stores deletion timestamps in SharedPreferences keyed by user ID so that
@@ -35,7 +36,8 @@ class ClientChatDeletionService {
       map[conversationId] = deleteTime;
 
       final encoded = jsonEncode({
-        for (final entry in map.entries) entry.key: entry.value.toIso8601String(),
+        for (final entry in map.entries)
+          entry.key: entry.value.toIso8601String(),
       });
       await prefs.setString(_prefKey(userId), encoded);
     } catch (e) {
@@ -66,7 +68,9 @@ class ClientChatDeletionService {
       }
       return result;
     } catch (e) {
-      debugPrint('[ClientChatDeletionService] Error reading deleted conversations: $e');
+      debugPrint(
+        '[ClientChatDeletionService] Error reading deleted conversations: $e',
+      );
       return <String, DateTime>{};
     }
   }
@@ -97,7 +101,9 @@ class ClientChatDeletionService {
         await prefs.setString(_prefKey(userId), encoded);
       }
     } catch (e) {
-      debugPrint('[ClientChatDeletionService] Error restoring conversation: $e');
+      debugPrint(
+        '[ClientChatDeletionService] Error restoring conversation: $e',
+      );
     }
   }
 

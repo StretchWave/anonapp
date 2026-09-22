@@ -600,7 +600,9 @@ class _UserSearchScreenState extends ConsumerState<UserSearchScreen>
                             ? user.username[0].toUpperCase()
                             : '?';
 
-                        final isUserOnline = ref.watch(isUserOnlineProvider(user.id));
+                        final isUserOnline = ref.watch(
+                          isUserOnlineProvider(user.id),
+                        );
 
                         return AppCard(
                           padding: const EdgeInsets.symmetric(

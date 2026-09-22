@@ -6,8 +6,9 @@ import 'package:flutter/services.dart';
 class SecureScreenService {
   SecureScreenService._();
 
-  static const MethodChannel _channel =
-      MethodChannel('com.example.anonapp/app_control');
+  static const MethodChannel _channel = MethodChannel(
+    'com.example.anonapp/app_control',
+  );
 
   /// Blocks screenshots and screen recordings on the current window.
   static Future<void> enableSecure() async {
