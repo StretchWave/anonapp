@@ -68,3 +68,5 @@ app.*.map.json
 android/build/
 .kotlin/
 android/.kotlin/
+supabase/.temp/
+scratch/
