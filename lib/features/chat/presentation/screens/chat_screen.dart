@@ -82,15 +82,22 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   }
 
   @override
+  void deactivate() {
+    try {
+      if (ref.read(activeConversationIdProvider) == widget.conversationId) {
+        ref.read(activeConversationIdProvider.notifier).state = null;
+      }
+      ref.invalidate(conversationsProvider);
+    } catch (_) {}
+    super.deactivate();
+  }
+
+  @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     _searchController.dispose();
-    if (ref.read(activeConversationIdProvider) == widget.conversationId) {
-      ref.read(activeConversationIdProvider.notifier).state = null;
-    }
-    ref.invalidate(conversationsProvider);
     super.dispose();
   }
 
@@ -193,7 +200,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         ? widget.otherUsername![0].toUpperCase()
         : '?';
 
-    return Scaffold(
+    return PopScope(
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) {
+          try {
+            if (ref.read(activeConversationIdProvider) == widget.conversationId) {
+              ref.read(activeConversationIdProvider.notifier).state = null;
+            }
+          } catch (_) {}
+        }
+      },
+      child: Scaffold(
       appBar: AppBar(
         titleSpacing: _isSearching ? 8 : 0,
         title: _isSearching
@@ -873,7 +890,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           ),
         ],
       ),
-    );
+    ),
+  );
   }
 
   void _showMeetAgainDialog(BuildContext context) {

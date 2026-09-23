@@ -170,7 +170,7 @@ class NotificationService {
     final notifId =
         id ??
         (conversationId != null
-            ? conversationNotificationId(conversationId)
+            ? ((conversationId.hashCode ^ DateTime.now().microsecondsSinceEpoch) & 0x7FFFFFFF)
             : (body.hashCode & 0x7FFFFFFF));
 
     if (conversationId != null) {
@@ -220,6 +220,9 @@ class NotificationService {
           '$unreadCount new ${unreadCount == 1 ? 'message' : 'messages'}',
     );
 
+    final groupKey =
+        conversationId != null ? 'anonapp_conv_$conversationId' : null;
+
     final androidDetails = AndroidNotificationDetails(
       _channelId,
       _channelName,
@@ -235,6 +238,7 @@ class NotificationService {
       fullScreenIntent: false,
       icon: '@mipmap/ic_launcher',
       ticker: contentTitle,
+      groupKey: groupKey,
       styleInformation: styleInfo,
     );
 
@@ -317,6 +321,7 @@ class NotificationService {
           (data['username'] ?? data['sender_username'] ?? '') as String;
 
       if (conversationId != null && conversationId.isNotEmpty) {
+        clearNotificationsForConversation(conversationId);
         final encodedUsername = Uri.encodeComponent(username);
         final targetPath = '/chat/$conversationId?username=$encodedUsername';
 

@@ -56,10 +56,14 @@ final conversationMessagesProvider = StateNotifierProvider.autoDispose
         } catch (_) {}
       });
       ref.onDispose(() {
-        if (ref.read(activeConversationIdProvider) == conversationId) {
-          ref.read(activeConversationIdProvider.notifier).state = null;
-        }
-        ref.invalidate(conversationsProvider);
+        try {
+          if (ref.read(activeConversationIdProvider) == conversationId) {
+            ref.read(activeConversationIdProvider.notifier).state = null;
+          }
+        } catch (_) {}
+        try {
+          ref.invalidate(conversationsProvider);
+        } catch (_) {}
       });
 
       final repo = ref.watch(messageRepositoryProvider);
