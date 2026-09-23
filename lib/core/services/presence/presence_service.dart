@@ -108,8 +108,7 @@ class PresenceService {
           unawaited(setOnline());
         }
       } else if (status == RealtimeSubscribeStatus.channelError ||
-          status == RealtimeSubscribeStatus.timedOut ||
-          status == RealtimeSubscribeStatus.closed) {
+          status == RealtimeSubscribeStatus.timedOut) {
         debugPrint(
           '[PresenceService] Realtime channel status: $status ($error). Scheduling reconnect.',
         );

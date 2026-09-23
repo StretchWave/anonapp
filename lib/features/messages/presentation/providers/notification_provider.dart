@@ -132,8 +132,13 @@ class BackgroundSyncManager with WidgetsBindingObserver {
 
   ProviderSubscription<AsyncValue<List<Conversation>>>? _conversationsSub;
 
+  RealtimeChannel? _notificationChannel;
+  Timer? _channelReconnectTimer;
+  bool _isDisposed = false;
+
   void start() {
     _subscribeConversationsForUsernameCache();
+    _setupNotificationChannel();
     if (kIsWeb) return;
     WidgetsBinding.instance.addObserver(this);
 
@@ -154,6 +159,104 @@ class BackgroundSyncManager with WidgetsBindingObserver {
     unawaited(_checkUnreadMessages());
   }
 
+  void _setupNotificationChannel() {
+    if (_isDisposed) return;
+    final currentUserId = _client.auth.currentUser?.id;
+    if (currentUserId == null) return;
+
+    _cleanupNotificationChannel();
+
+    final channelName = 'user_notif_$currentUserId';
+    final channel = _client.channel(channelName);
+
+    channel
+        .onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: SupabaseConstants.messagesTable,
+          callback: (payload) async {
+            try {
+              final record = payload.newRecord;
+              if (record.isEmpty) return;
+              debugPrint(
+                '[NotificationListener] PostgresChanges insert received: ${record['id']}',
+              );
+              await dispatchNotificationForRecord(record);
+            } catch (e) {
+              debugPrint(
+                '[NotificationListener] Error handling notification: $e',
+              );
+            }
+          },
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.update,
+          schema: 'public',
+          table: SupabaseConstants.messagesTable,
+          callback: (payload) {
+            try {
+              final record = payload.newRecord;
+              if (record.isNotEmpty && record['read_at'] != null) {
+                final convId = record['conversation_id'] as String?;
+                if (convId != null) {
+                  _ref
+                      .read(locallyReadConversationIdsProvider.notifier)
+                      .update((s) => {...s, convId});
+                }
+              }
+            } catch (_) {}
+          },
+        );
+
+    _notificationChannel = channel;
+
+    channel.subscribe((status, error) {
+      debugPrint(
+        '[NotificationListener] Channel $channelName status: $status ($error)',
+      );
+      if (_isDisposed) return;
+      if (status == RealtimeSubscribeStatus.subscribed) {
+        _isChannelSubscribed = true;
+        _channelReconnectTimer?.cancel();
+        _channelReconnectTimer = null;
+      } else if (status == RealtimeSubscribeStatus.channelError ||
+          status == RealtimeSubscribeStatus.timedOut) {
+        _isChannelSubscribed = false;
+        _scheduleChannelReconnect();
+      }
+    });
+  }
+
+  bool _isChannelSubscribed = false;
+
+  void _scheduleChannelReconnect() {
+    if (_isDisposed || (_channelReconnectTimer?.isActive ?? false)) return;
+    _channelReconnectTimer = Timer(const Duration(seconds: 4), () async {
+      _channelReconnectTimer = null;
+      if (_isDisposed || _client.auth.currentUser == null) return;
+      if (_isChannelSubscribed) {
+        return;
+      }
+      debugPrint(
+        '[NotificationListener] Re-establishing notification channel after error/timeout...',
+      );
+      _setupNotificationChannel();
+    });
+  }
+
+  void _cleanupNotificationChannel() {
+    _isChannelSubscribed = false;
+    _channelReconnectTimer?.cancel();
+    _channelReconnectTimer = null;
+    final ch = _notificationChannel;
+    _notificationChannel = null;
+    if (ch != null) {
+      try {
+        _client.removeChannel(ch);
+      } catch (_) {}
+    }
+  }
+
   void _subscribeConversationsForUsernameCache() {
     _conversationsSub = _ref.listen<AsyncValue<List<Conversation>>>(
       conversationsProvider,
@@ -172,6 +275,8 @@ class BackgroundSyncManager with WidgetsBindingObserver {
   }
 
   void stop() {
+    _isDisposed = true;
+    _cleanupNotificationChannel();
     _conversationsSub?.close();
     if (kIsWeb) return;
     WidgetsBinding.instance.removeObserver(this);
@@ -206,7 +311,10 @@ class BackgroundSyncManager with WidgetsBindingObserver {
       // Clear active conversation ID so background messages trigger notifications properly
       _ref.read(activeConversationIdProvider.notifier).state = null;
     } else {
-      // Returned to foreground: re-check status and perform chat UI reconciliation
+      // Returned to foreground: ensure channel is active, re-check status and perform chat UI reconciliation
+      if (_notificationChannel == null) {
+        _setupNotificationChannel();
+      }
       _ref.invalidate(pushNotificationStatusProvider);
       _ref.invalidate(conversationsProvider);
 
@@ -431,21 +539,13 @@ class BackgroundSyncManager with WidgetsBindingObserver {
 /// and dispatches system notifications with sound exclusively on mobile (Android/iOS).
 /// UNDER NO CIRCUMSTANCES does the Web platform show notifications or play sounds.
 final messageNotificationListenerProvider = Provider<void>((ref) {
-  final authState = ref.watch(authStateProvider);
-  final isAuthenticated = authState.valueOrNull ?? false;
+  // Watch auth state changes so this provider rebuilds when user signs in or out
+  ref.watch(authStateProvider);
 
   final client = ref.watch(supabaseClientProvider);
   final currentUserId = client.auth.currentUser?.id;
 
-  if (!isAuthenticated || currentUserId == null) {
-    if (!kIsWeb && currentUserId != null) {
-      unawaited(
-        PushNotificationService.instance.deactivateDevice(
-          client,
-          currentUserId,
-        ),
-      );
-    }
+  if (currentUserId == null) {
     return;
   }
 
@@ -458,68 +558,8 @@ final messageNotificationListenerProvider = Provider<void>((ref) {
   final syncManager = BackgroundSyncManager(ref, client);
   syncManager.start();
 
-  // Realtime channel for incoming message notifications & UI synchronization
-  // Scoped uniquely to currentUserId to avoid multi-device topic collisions
-  final channel = client.channel('user_notif_$currentUserId');
-
-  channel
-      .onPostgresChanges(
-        event: PostgresChangeEvent.insert,
-        schema: 'public',
-        table: SupabaseConstants.messagesTable,
-        callback: (payload) async {
-          try {
-            final record = payload.newRecord;
-            if (record.isEmpty) return;
-            debugPrint(
-              '[NotificationListener] PostgresChanges insert received: ${record['id']}',
-            );
-            await syncManager.dispatchNotificationForRecord(record);
-          } catch (e) {
-            debugPrint(
-              '[NotificationListener] Error handling notification: $e',
-            );
-          }
-        },
-      )
-      .onPostgresChanges(
-        event: PostgresChangeEvent.update,
-        schema: 'public',
-        table: SupabaseConstants.messagesTable,
-        callback: (payload) {
-          try {
-            final record = payload.newRecord;
-            if (record.isNotEmpty && record['read_at'] != null) {
-              final convId = record['conversation_id'] as String?;
-              if (convId != null) {
-                ref
-                    .read(locallyReadConversationIdsProvider.notifier)
-                    .update((s) => {...s, convId});
-              }
-            }
-          } catch (_) {}
-        },
-      )
-      .subscribe((status, error) {
-        debugPrint(
-          '[NotificationListener] Channel user_notif_$currentUserId status: $status ($error)',
-        );
-        if (status == RealtimeSubscribeStatus.channelError ||
-            status == RealtimeSubscribeStatus.timedOut ||
-            status == RealtimeSubscribeStatus.closed) {
-          debugPrint(
-            '[NotificationListener] Channel status: $status ($error). Reconnecting...',
-          );
-          Future.delayed(const Duration(seconds: 2), () {
-            if (client.auth.currentUser != null) {
-              channel.subscribe();
-            }
-          });
-        }
-      });
-
   ref.onDispose(() {
     syncManager.stop();
-    channel.unsubscribe();
   });
 });
+
