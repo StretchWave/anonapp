@@ -13,7 +13,7 @@
         <!-- Firebase Cloud Messaging Defaults -->
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_channel_id"
-            android:value="anonapp_messages" />
+            android:value="anonapp_messages_v5" />
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_icon"
             android:resource="@drawable/ic_stat_notification" />

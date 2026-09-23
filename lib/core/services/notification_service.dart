@@ -18,7 +18,7 @@ class NotificationService {
 
   bool _initialized = false;
 
-  static const String _channelId = 'anonapp_messages';
+  static const String _channelId = 'anonapp_messages_v5';
   static const String _channelName = 'Incoming Messages';
   static const String _channelDescription =
       'High-priority sound and vibration notifications for incoming anonymous messages';
@@ -29,7 +29,7 @@ class NotificationService {
     if (kIsWeb || _initialized) return;
 
     const androidSettings = AndroidInitializationSettings(
-      '@drawable/ic_stat_notification',
+      '@mipmap/ic_launcher',
     );
 
     const darwinSettings = DarwinInitializationSettings(
@@ -55,6 +55,13 @@ class NotificationService {
         >();
 
     if (androidImplementation != null) {
+      // Clean up legacy lower-importance channels to prevent Android caching issues
+      try {
+        await androidImplementation.deleteNotificationChannel(channelId: 'anonapp_messages');
+        await androidImplementation.deleteNotificationChannel(channelId: 'anonapp_messages_v2');
+        await androidImplementation.deleteNotificationChannel(channelId: 'anonapp_messages_v4');
+      } catch (_) {}
+
       await androidImplementation.createNotificationChannel(
         const AndroidNotificationChannel(
           _channelId,
@@ -224,10 +231,9 @@ class NotificationService {
       visibility: NotificationVisibility.public,
       category: AndroidNotificationCategory.message,
       channelShowBadge: true,
-      onlyAlertOnce:
-          false, // Plays sound/vibration on new message while updating card
+      onlyAlertOnce: false,
       fullScreenIntent: false,
-      icon: '@drawable/ic_stat_notification',
+      icon: '@mipmap/ic_launcher',
       ticker: contentTitle,
       styleInformation: styleInfo,
     );
@@ -254,13 +260,20 @@ class NotificationService {
       });
     }
 
-    await _notificationsPlugin.show(
-      id: notifId,
-      title: contentTitle,
-      body: body,
-      notificationDetails: details,
-      payload: payload,
-    );
+    try {
+      await _notificationsPlugin.show(
+        id: notifId,
+        title: contentTitle,
+        body: body,
+        notificationDetails: details,
+        payload: payload,
+      );
+      debugPrint(
+        '[NotificationService] Notification displayed successfully: id=$notifId title="$contentTitle" body="$body"',
+      );
+    } catch (e, st) {
+      debugPrint('[NotificationService] Error displaying notification: $e\n$st');
+    }
   }
 
   /// Cancel active notifications for a specific conversation and clear stacked history.
@@ -298,8 +311,10 @@ class NotificationService {
 
     try {
       final data = jsonDecode(payloadString) as Map<String, dynamic>;
-      final conversationId = data['conversationId'] as String?;
-      final username = data['username'] as String? ?? '';
+      final conversationId =
+          (data['conversationId'] ?? data['conversation_id']) as String?;
+      final username =
+          (data['username'] ?? data['sender_username'] ?? '') as String;
 
       if (conversationId != null && conversationId.isNotEmpty) {
         final encodedUsername = Uri.encodeComponent(username);

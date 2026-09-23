@@ -275,6 +275,7 @@ class _ConversationsScreenState extends ConsumerState<ConversationsScreen> {
   }
 
   Widget _buildErrorView(Object error) {
+    debugPrint('[ConversationsScreen] Error loading chats: $error');
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),

@@ -12,6 +12,7 @@ import '../../../../core/services/notification_service.dart';
 import '../../../../core/services/push_notification_service.dart';
 import '../../../../core/services/supabase_service.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../../conversations/domain/models/conversation.dart';
 import '../../../conversations/presentation/providers/conversation_provider.dart';
 import 'message_provider.dart';
 
@@ -116,33 +117,66 @@ final pushNotificationStatusProvider = FutureProvider<PushNotificationStatus>((
   return PushNotificationService.instance.getStatus(settings.enabled);
 });
 
-/// Lifecycle and session observer ensuring FCM tokens are registered on login,
-/// deactivated on logout, and synchronized when returning to foreground.
-class PushLifecycleCoordinator with WidgetsBindingObserver {
-  PushLifecycleCoordinator(this._ref, this._client);
+/// Manages background unread synchronization, active chat notification suppression,
+/// and local notification dispatch for incoming messages across Mobile and Web.
+///
+/// NOTE: Strictly no notifications or sounds are dispatched on Web (kIsWeb).
+class BackgroundSyncManager with WidgetsBindingObserver {
+  BackgroundSyncManager(this._ref, this._client);
 
   final Ref _ref;
   final SupabaseClient _client;
+  Timer? _keepAliveTimer;
+  final Set<String> _processedMessageIds = {};
+  final Map<String, String> _usernameCache = {};
+
+  ProviderSubscription<AsyncValue<List<Conversation>>>? _conversationsSub;
 
   void start() {
+    _subscribeConversationsForUsernameCache();
     if (kIsWeb) return;
     WidgetsBinding.instance.addObserver(this);
 
-    // Link active conversation checker for active-chat notification suppression
+    // Active conversation checker for PushNotificationService
     PushNotificationService.instance.activeConversationChecker = (convId) {
       final isResumed = _ref.read(isAppResumedProvider);
       final activeConvId = _ref.read(activeConversationIdProvider);
       return isResumed && activeConvId == convId;
     };
 
-    // Initial sync
+    // Ensure notification permissions are requested on mobile when UI starts
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      NotificationService.instance.requestPermissions();
+    });
+
     _syncCurrentDevice();
+    _startKeepAliveLoop();
+    unawaited(_checkUnreadMessages());
+  }
+
+  void _subscribeConversationsForUsernameCache() {
+    _conversationsSub = _ref.listen<AsyncValue<List<Conversation>>>(
+      conversationsProvider,
+      (previous, next) {
+        final list = next.valueOrNull;
+        if (list != null) {
+          for (final c in list) {
+            if (c.otherMemberId != null && c.otherMemberUsername != null) {
+              _usernameCache[c.otherMemberId!] = c.otherMemberUsername!;
+            }
+          }
+        }
+      },
+      fireImmediately: true,
+    );
   }
 
   void stop() {
+    _conversationsSub?.close();
     if (kIsWeb) return;
     WidgetsBinding.instance.removeObserver(this);
     PushNotificationService.instance.activeConversationChecker = null;
+    _keepAliveTimer?.cancel();
   }
 
   void _syncCurrentDevice() {
@@ -187,17 +221,215 @@ class PushLifecycleCoordinator with WidgetsBindingObserver {
           activeConvId,
         );
       }
+
+      unawaited(_checkUnreadMessages());
     }
+  }
+
+  void _startKeepAliveLoop() {
+    _keepAliveTimer?.cancel();
+    // Check for missed unread messages every 4 seconds as a reliable background fallback
+    _keepAliveTimer = Timer.periodic(const Duration(seconds: 4), (_) async {
+      await _checkUnreadMessages();
+    });
+  }
+
+  Future<void> _checkUnreadMessages() async {
+    final currentUserId = _client.auth.currentUser?.id;
+    if (currentUserId == null) return;
+
+    try {
+      // Rolling 10-minute window avoids dropping messages due to clock drift
+      final windowStart = DateTime.now()
+          .toUtc()
+          .subtract(const Duration(minutes: 10))
+          .toIso8601String();
+
+      final rows = await _client
+          .from(SupabaseConstants.messagesTable)
+          .select(
+            'id, conversation_id, sender_id, content, message_type, created_at, client_id, expires_at, deleted_at',
+          )
+          .neq('sender_id', currentUserId)
+          .filter('read_at', 'is', null)
+          .gt('created_at', windowStart)
+          .order('created_at', ascending: true)
+          .limit(20);
+
+      for (final row in rows) {
+        final id = row['id'] as String?;
+        if (id != null && _processedMessageIds.contains(id)) continue;
+        if (row['deleted_at'] != null) continue;
+
+        final expiresAtStr = row['expires_at'] as String?;
+        if (expiresAtStr != null) {
+          final exp = DateTime.tryParse(expiresAtStr)?.toUtc();
+          if (exp != null && DateTime.now().toUtc().isAfter(exp)) {
+            continue;
+          }
+        }
+
+        // If this unread message belongs to the active conversation,
+        // feed it directly to the message provider for instant UI update
+        final convId = row['conversation_id'] as String?;
+        final activeConv = _ref.read(activeConversationIdProvider);
+        if (convId != null && activeConv == convId) {
+          try {
+            unawaited(
+              _ref
+                  .read(conversationMessagesProvider(convId).notifier)
+                  .insertIncomingRecord(row),
+            );
+          } catch (_) {}
+        }
+
+        await dispatchNotificationForRecord(row);
+      }
+    } catch (e) {
+      debugPrint('[BackgroundSync] Check unread error: $e');
+    }
+  }
+
+  /// Dispatches a high-priority system notification with sound and vibration on mobile devices.
+  /// Strictly skips notifications and sounds on Web (kIsWeb).
+  Future<void> dispatchNotificationForRecord(
+    Map<String, dynamic> record,
+  ) async {
+    final currentUserId = _client.auth.currentUser?.id;
+    final senderId = record['sender_id'] as String?;
+    final conversationId = record['conversation_id'] as String?;
+    if (senderId == null || conversationId == null) return;
+    if (senderId == currentUserId) return;
+
+    if (record['deleted_at'] != null) return;
+    final expiresAtStr = record['expires_at'] as String?;
+    if (expiresAtStr != null) {
+      final exp = DateTime.tryParse(expiresAtStr)?.toUtc();
+      if (exp != null && DateTime.now().toUtc().isAfter(exp)) {
+        return;
+      }
+    }
+
+    final id = record['id'] as String?;
+    if (id != null) {
+      if (_processedMessageIds.contains(id)) return;
+      _processedMessageIds.add(id);
+      if (_processedMessageIds.length > 300) {
+        _processedMessageIds.remove(_processedMessageIds.first);
+      }
+    }
+
+    // Invalidate conversations list so unread counter updates in real time
+    _ref.invalidate(conversationsProvider);
+
+    // If active conversation matches, feed record directly to conversationMessagesProvider
+    final activeConversation = _ref.read(activeConversationIdProvider);
+    if (activeConversation == conversationId) {
+      try {
+        unawaited(
+          _ref
+              .read(conversationMessagesProvider(conversationId).notifier)
+              .insertIncomingRecord(record),
+        );
+      } catch (_) {}
+    }
+
+    // UNDER NO CIRCUMSTANCES should the webapp get a notification or play sound
+    if (kIsWeb) return;
+
+    // Check if user is currently looking at this conversation in the FOREGROUND
+    final isResumed = _ref.read(isAppResumedProvider);
+
+    // ONLY suppress notification if the app is actively resumed AND looking at this exact chat
+    if (isResumed && activeConversation == conversationId) {
+      debugPrint(
+        '[BackgroundSync] Suppressing notification: user actively viewing conv $conversationId',
+      );
+      return;
+    }
+
+    final settings = _ref.read(notificationSettingsProvider);
+    if (!settings.enabled) {
+      debugPrint('[BackgroundSync] Notification skipped: disabled in settings');
+      return;
+    }
+
+    String senderUsername = 'Anonymous';
+    if (!settings.discreet) {
+      if (_usernameCache.containsKey(senderId)) {
+        senderUsername = _usernameCache[senderId]!;
+      } else {
+        try {
+          final profile = await _client
+              .from(SupabaseConstants.profilesTable)
+              .select('username')
+              .eq('id', senderId)
+              .maybeSingle();
+          if (profile != null && profile['username'] != null) {
+            senderUsername = profile['username'] as String;
+            _usernameCache[senderId] = senderUsername;
+          }
+        } catch (_) {}
+      }
+    }
+
+    String title;
+    String body;
+
+    if (settings.discreet) {
+      title = 'AnonApp';
+      body = 'New message received';
+    } else {
+      title = '@$senderUsername';
+      final msgType = record['message_type'] as String? ?? 'text';
+      switch (msgType) {
+        case 'image':
+          body = '📷 Photo';
+          break;
+        case 'view_once_image':
+          body = '🔒 Photo (View once)';
+          break;
+        case 'audio':
+          body = '🎤 Voice message';
+          break;
+        case 'document':
+          body = '📄 Document';
+          break;
+        default:
+          final rawContent = record['content'] as String? ?? 'New message';
+          if (EncryptionService.isEncrypted(rawContent)) {
+            body = await EncryptionService.instance.decryptText(
+              rawContent,
+              conversationId,
+            );
+          } else {
+            body = rawContent;
+          }
+          break;
+      }
+    }
+
+    final notifId =
+        NotificationService.conversationNotificationId(conversationId);
+
+    debugPrint(
+      '[BackgroundSync] Dispatching notification $notifId for @$senderUsername: "$body"',
+    );
+
+    await NotificationService.instance.showMessageNotification(
+      id: notifId,
+      title: title,
+      body: body,
+      conversationId: conversationId,
+      senderUsername: senderUsername,
+      isDiscreet: settings.discreet,
+    );
   }
 }
 
-/// Activates FCM push notification registration, token lifecycle, and Realtime UI synchronization.
-///
-/// ARCHITECTURAL SEPARATION:
-/// - Firebase Cloud Messaging (FCM) = Push notification transport across all app lifecycle states
-/// - Supabase Realtime = In-app UI synchronization (chat updates, read receipts, typing) ONLY
-///
-/// Under NO circumstances does Realtime create system notifications or play sounds.
+/// Listens for real-time incoming messages to update conversations across Web and Mobile,
+/// and dispatches system notifications with sound exclusively on mobile (Android/iOS).
+/// UNDER NO CIRCUMSTANCES does the Web platform show notifications or play sounds.
 final messageNotificationListenerProvider = Provider<void>((ref) {
   final authState = ref.watch(authStateProvider);
   final isAuthenticated = authState.valueOrNull ?? false;
@@ -217,43 +449,36 @@ final messageNotificationListenerProvider = Provider<void>((ref) {
     return;
   }
 
-  // Mobile push registration & lifecycle coordination
+  // Initialize notifications on mobile (Android/iOS)
   if (!kIsWeb) {
-    final coordinator = PushLifecycleCoordinator(ref, client);
-    coordinator.start();
-    ref.onDispose(coordinator.stop);
+    unawaited(NotificationService.instance.initialize());
+    unawaited(NotificationService.instance.checkLaunchNotification());
   }
 
-  // Realtime channel for live UI chat synchronization (NEVER for system notifications)
-  final channel = client.channel('realtime_ui_sync');
+  final syncManager = BackgroundSyncManager(ref, client);
+  syncManager.start();
+
+  // Realtime channel for incoming message notifications & UI synchronization
+  // Scoped uniquely to currentUserId to avoid multi-device topic collisions
+  final channel = client.channel('user_notif_$currentUserId');
 
   channel
       .onPostgresChanges(
         event: PostgresChangeEvent.insert,
         schema: 'public',
         table: SupabaseConstants.messagesTable,
-        callback: (payload) {
+        callback: (payload) async {
           try {
             final record = payload.newRecord;
             if (record.isEmpty) return;
-
-            // Invalidate conversations list so unread badges update in UI
-            ref.invalidate(conversationsProvider);
-
-            // If user is actively reading this conversation, feed record directly to conversation provider
-            final convId = record['conversation_id'] as String?;
-            final activeConv = ref.read(activeConversationIdProvider);
-            if (convId != null && activeConv == convId) {
-              try {
-                unawaited(
-                  ref
-                      .read(conversationMessagesProvider(convId).notifier)
-                      .insertIncomingRecord(record),
-                );
-              } catch (_) {}
-            }
+            debugPrint(
+              '[NotificationListener] PostgresChanges insert received: ${record['id']}',
+            );
+            await syncManager.dispatchNotificationForRecord(record);
           } catch (e) {
-            debugPrint('[RealtimeUI] Error updating UI from insert: $e');
+            debugPrint(
+              '[NotificationListener] Error handling notification: $e',
+            );
           }
         },
       )
@@ -276,11 +501,14 @@ final messageNotificationListenerProvider = Provider<void>((ref) {
         },
       )
       .subscribe((status, error) {
+        debugPrint(
+          '[NotificationListener] Channel user_notif_$currentUserId status: $status ($error)',
+        );
         if (status == RealtimeSubscribeStatus.channelError ||
             status == RealtimeSubscribeStatus.timedOut ||
             status == RealtimeSubscribeStatus.closed) {
           debugPrint(
-            '[RealtimeUI] Channel status: $status ($error). Reconnecting...',
+            '[NotificationListener] Channel status: $status ($error). Reconnecting...',
           );
           Future.delayed(const Duration(seconds: 2), () {
             if (client.auth.currentUser != null) {
@@ -291,6 +519,7 @@ final messageNotificationListenerProvider = Provider<void>((ref) {
       });
 
   ref.onDispose(() {
+    syncManager.stop();
     channel.unsubscribe();
   });
 });

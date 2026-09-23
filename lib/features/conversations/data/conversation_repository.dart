@@ -16,7 +16,8 @@ class ConversationRepository {
   /// member's username, last message, and unread count.
   Future<List<Conversation>> getConversations() async {
     try {
-      final userId = _client.auth.currentUser!.id;
+      final userId = _client.auth.currentUser?.id;
+      if (userId == null) return [];
 
       // Get all conversation IDs the user is a member of.
       final memberRows = await _client
