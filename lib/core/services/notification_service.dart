@@ -170,7 +170,7 @@ class NotificationService {
     final notifId =
         id ??
         (conversationId != null
-            ? ((conversationId.hashCode ^ DateTime.now().microsecondsSinceEpoch) & 0x7FFFFFFF)
+            ? conversationNotificationId(conversationId)
             : (body.hashCode & 0x7FFFFFFF));
 
     if (conversationId != null) {
@@ -220,9 +220,6 @@ class NotificationService {
           '$unreadCount new ${unreadCount == 1 ? 'message' : 'messages'}',
     );
 
-    final groupKey =
-        conversationId != null ? 'anonapp_conv_$conversationId' : null;
-
     final androidDetails = AndroidNotificationDetails(
       _channelId,
       _channelName,
@@ -235,10 +232,12 @@ class NotificationService {
       category: AndroidNotificationCategory.message,
       channelShowBadge: true,
       onlyAlertOnce: false,
+      showWhen: true,
+      when: DateTime.now().millisecondsSinceEpoch,
       fullScreenIntent: false,
       icon: '@mipmap/ic_launcher',
       ticker: contentTitle,
-      groupKey: groupKey,
+      groupKey: null,
       styleInformation: styleInfo,
     );
 

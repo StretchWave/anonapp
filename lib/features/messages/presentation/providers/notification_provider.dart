@@ -518,9 +518,8 @@ class BackgroundSyncManager with WidgetsBindingObserver {
     }
 
     final messageId = record['id'] as String?;
-    final notifId = (messageId != null)
-        ? (messageId.hashCode & 0x7FFFFFFF)
-        : (DateTime.now().microsecondsSinceEpoch & 0x7FFFFFFF);
+    final notifId =
+        NotificationService.conversationNotificationId(conversationId);
 
     debugPrint(
       '[BackgroundSync] Dispatching notification $notifId (msg: $messageId) for @$senderUsername: "$body"',
