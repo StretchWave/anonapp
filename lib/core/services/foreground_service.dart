@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 
+import 'encryption_service.dart';
 import 'notification_service.dart';
 
 /// Top-level callback entry point required by [FlutterForegroundTask].
@@ -18,6 +19,7 @@ void startForegroundTaskCallback() {
 /// and verifies incoming messages periodically to guarantee system notifications.
 class AnonAppForegroundTaskHandler extends TaskHandler {
   final Set<String> _notifiedMessageIds = {};
+  final Map<String, String> _usernameCache = {};
   DateTime? _lastMainPing;
 
   @override
@@ -57,6 +59,41 @@ class AnonAppForegroundTaskHandler extends TaskHandler {
     debugPrint('[ForegroundService] Received data from main: $data');
   }
 
+  Future<String?> _getSenderUsername(
+    HttpClient client,
+    String supabaseUrl,
+    String anonKey,
+    String? token,
+    String senderId,
+  ) async {
+    if (_usernameCache.containsKey(senderId)) {
+      return _usernameCache[senderId];
+    }
+    try {
+      final queryUri = Uri.parse(
+        '$supabaseUrl/rest/v1/profiles?id=eq.$senderId&select=username',
+      );
+      final req = await client.getUrl(queryUri);
+      req.headers.set('apikey', anonKey);
+      if (token != null && token.isNotEmpty) {
+        req.headers.set('Authorization', 'Bearer $token');
+      }
+      final resp = await req.close();
+      if (resp.statusCode == 200) {
+        final body = await resp.transform(utf8.decoder).join();
+        final list = jsonDecode(body) as List<dynamic>;
+        if (list.isNotEmpty &&
+            list.first is Map &&
+            list.first['username'] != null) {
+          final username = list.first['username'] as String;
+          _usernameCache[senderId] = username;
+          return username;
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
   Future<void> _checkUnreadFromBackground() async {
     final userId = await FlutterForegroundTask.getData<String>(key: 'user_id');
     final supabaseUrl =
@@ -78,7 +115,8 @@ class AnonAppForegroundTaskHandler extends TaskHandler {
 
       final queryUri = Uri.parse(
         '$supabaseUrl/rest/v1/messages'
-        '?sender_id=neq.$userId'
+        '?select=id,conversation_id,sender_id,content,message_type,created_at,deleted_at,expires_at'
+        '&sender_id=neq.$userId'
         '&read_at=is.null'
         '&created_at=gt.$windowStart'
         '&order=created_at.asc'
@@ -98,6 +136,16 @@ class AnonAppForegroundTaskHandler extends TaskHandler {
 
         for (final item in records) {
           if (item is! Map<String, dynamic>) continue;
+          if (item['deleted_at'] != null) continue;
+
+          final expiresAtStr = item['expires_at'] as String?;
+          if (expiresAtStr != null) {
+            final exp = DateTime.tryParse(expiresAtStr)?.toUtc();
+            if (exp != null && DateTime.now().toUtc().isAfter(exp)) {
+              continue;
+            }
+          }
+
           final msgId = item['id'] as String?;
           final convId = item['conversation_id'] as String?;
           if (msgId == null || convId == null) continue;
@@ -123,17 +171,39 @@ class AnonAppForegroundTaskHandler extends TaskHandler {
               preview = '📎 Document';
               break;
             default:
-              preview = 'New message received';
+              final rawContent = item['content'] as String? ?? '';
+              if (EncryptionService.isEncrypted(rawContent)) {
+                preview = await EncryptionService.instance.decryptText(
+                  rawContent,
+                  convId,
+                );
+              } else if (rawContent.isNotEmpty) {
+                preview = rawContent;
+              } else {
+                preview = 'New message';
+              }
               break;
           }
+
+          final senderId = item['sender_id'] as String?;
+          final senderUsername = senderId != null
+              ? await _getSenderUsername(
+                  client,
+                  supabaseUrl,
+                  anonKey,
+                  token,
+                  senderId,
+                )
+              : null;
 
           final notifId =
               NotificationService.conversationNotificationId(convId);
           await NotificationService.instance.showMessageNotification(
             id: notifId,
-            title: 'AnonApp',
+            title: senderUsername != null ? '@$senderUsername' : 'AnonApp',
             body: preview,
             conversationId: convId,
+            senderUsername: senderUsername,
           );
         }
       }
