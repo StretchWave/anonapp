@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/services/foreground_service.dart';
 import '../../../../core/services/presence/presence_provider.dart';
 import '../../../../core/services/push_notification_service.dart';
 import '../../../../core/services/supabase_service.dart';
@@ -72,6 +73,7 @@ class AuthNotifier extends AsyncNotifier<UserProfile?> {
       if (userId != null) {
         await PushNotificationService.instance.deactivateDevice(client, userId);
       }
+      await AppForegroundService.instance.stop();
       await ref.read(presenceServiceProvider).setOffline();
       await ref.read(presenceServiceProvider).disposeChannelOnly();
     } catch (_) {}

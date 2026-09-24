@@ -7,7 +7,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/constants/supabase_constants.dart';
+import '../../../../core/env/env.dart';
 import '../../../../core/services/encryption_service.dart';
+import '../../../../core/services/foreground_service.dart';
 import '../../../../core/services/notification_service.dart';
 import '../../../../core/services/push_notification_service.dart';
 import '../../../../core/services/supabase_service.dart';
@@ -68,13 +70,14 @@ class NotificationSettingsNotifier extends StateNotifier<NotificationSettings> {
       await PushNotificationService.instance.requestPermission();
     } else {
       await NotificationService.instance.cancelAll();
+      await AppForegroundService.instance.stop();
     }
 
     state = state.copyWith(enabled: enabled);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_keyEnabled, enabled);
 
-    // Sync state with Supabase device registry if user is logged in
+    // Sync state with Supabase device registry and foreground service if user is logged in
     final client = _ref.read(supabaseClientProvider);
     final currentUserId = client.auth.currentUser?.id;
     if (currentUserId != null) {
@@ -84,6 +87,17 @@ class NotificationSettingsNotifier extends StateNotifier<NotificationSettings> {
         notificationsEnabled: enabled,
         isDiscreet: state.discreet,
       );
+
+      if (enabled) {
+        final session = client.auth.currentSession;
+        await AppForegroundService.instance.start(
+          userId: currentUserId,
+          supabaseUrl: Env.supabaseUrl,
+          supabaseAnonKey: Env.supabaseAnonKey,
+          authToken: session?.accessToken,
+        );
+        await AppForegroundService.instance.requestBatteryExemption();
+      }
     }
     _ref.invalidate(pushNotificationStatusProvider);
   }
@@ -155,6 +169,8 @@ class BackgroundSyncManager with WidgetsBindingObserver {
     });
 
     _syncCurrentDevice();
+    _startForegroundServiceIfAllowed();
+    AppForegroundService.instance.addTaskDataCallback(_onReceiveForegroundTaskData);
     _startKeepAliveLoop();
     unawaited(_checkUnreadMessages());
   }
@@ -282,6 +298,34 @@ class BackgroundSyncManager with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     PushNotificationService.instance.activeConversationChecker = null;
     _keepAliveTimer?.cancel();
+    AppForegroundService.instance.removeTaskDataCallback(_onReceiveForegroundTaskData);
+  }
+
+  void _onReceiveForegroundTaskData(Object data) {
+    AppForegroundService.instance.pingBackground();
+    if (data is Map && data['action'] == 'check_unread') {
+      unawaited(_checkUnreadMessages());
+    }
+  }
+
+  void _startForegroundServiceIfAllowed() {
+    if (kIsWeb) return;
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) return;
+
+    final settings = _ref.read(notificationSettingsProvider);
+    if (!settings.enabled) return;
+
+    final session = _client.auth.currentSession;
+    unawaited(
+      AppForegroundService.instance.start(
+        userId: userId,
+        supabaseUrl: Env.supabaseUrl,
+        supabaseAnonKey: Env.supabaseAnonKey,
+        authToken: session?.accessToken,
+      ),
+    );
+    unawaited(AppForegroundService.instance.requestBatteryExemption());
   }
 
   void _syncCurrentDevice() {
@@ -311,7 +355,8 @@ class BackgroundSyncManager with WidgetsBindingObserver {
       // Clear active conversation ID so background messages trigger notifications properly
       _ref.read(activeConversationIdProvider.notifier).state = null;
     } else {
-      // Returned to foreground: ensure channel is active, re-check status and perform chat UI reconciliation
+      // Returned to foreground: ensure service is alive, channel is active, re-check status and perform chat UI reconciliation
+      _startForegroundServiceIfAllowed();
       if (_notificationChannel == null) {
         _setupNotificationChannel();
       }
