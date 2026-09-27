@@ -96,11 +96,15 @@ class AnonAppForegroundTaskHandler extends TaskHandler {
 
   Future<void> _checkUnreadFromBackground() async {
     final userId = await FlutterForegroundTask.getData<String>(key: 'user_id');
-    final supabaseUrl =
-        await FlutterForegroundTask.getData<String>(key: 'supabase_url');
-    final anonKey =
-        await FlutterForegroundTask.getData<String>(key: 'supabase_anon_key');
-    final token = await FlutterForegroundTask.getData<String>(key: 'auth_token');
+    final supabaseUrl = await FlutterForegroundTask.getData<String>(
+      key: 'supabase_url',
+    );
+    final anonKey = await FlutterForegroundTask.getData<String>(
+      key: 'supabase_anon_key',
+    );
+    final token = await FlutterForegroundTask.getData<String>(
+      key: 'auth_token',
+    );
 
     if (userId == null || supabaseUrl == null || anonKey == null) return;
 
@@ -196,14 +200,16 @@ class AnonAppForegroundTaskHandler extends TaskHandler {
                 )
               : null;
 
-          final notifId =
-              NotificationService.conversationNotificationId(convId);
+          final notifId = NotificationService.conversationNotificationId(
+            convId,
+          );
           await NotificationService.instance.showMessageNotification(
             id: notifId,
             title: senderUsername != null ? '@$senderUsername' : 'AnonApp',
             body: preview,
             conversationId: convId,
             senderUsername: senderUsername,
+            messageId: item['id'] as String?,
           );
         }
       }
@@ -230,7 +236,7 @@ class AppForegroundService {
     FlutterForegroundTask.initCommunicationPort();
     FlutterForegroundTask.init(
       androidNotificationOptions: AndroidNotificationOptions(
-        channelId: 'anonapp_bg_service_v2',
+        channelId: 'anonapp_bg_service_v4',
         channelName: 'AnonApp Background Service',
         channelDescription:
             'Maintains live connection for incoming message notifications',
@@ -271,8 +277,14 @@ class AppForegroundService {
     }
 
     await FlutterForegroundTask.saveData(key: 'user_id', value: userId);
-    await FlutterForegroundTask.saveData(key: 'supabase_url', value: supabaseUrl);
-    await FlutterForegroundTask.saveData(key: 'supabase_anon_key', value: supabaseAnonKey);
+    await FlutterForegroundTask.saveData(
+      key: 'supabase_url',
+      value: supabaseUrl,
+    );
+    await FlutterForegroundTask.saveData(
+      key: 'supabase_anon_key',
+      value: supabaseAnonKey,
+    );
     if (authToken != null) {
       await FlutterForegroundTask.saveData(key: 'auth_token', value: authToken);
     }
@@ -287,14 +299,24 @@ class AppForegroundService {
             ForegroundServiceTypes.remoteMessaging,
           ],
           notificationTitle: 'AnonApp',
-          notificationText: 'Running',
+          notificationText: 'Listening for messages',
           callback: startForegroundTaskCallback,
         );
-        debugPrint('[ForegroundService] Foreground service started successfully');
+        debugPrint(
+          '[ForegroundService] Foreground service started successfully',
+        );
       }
     } catch (e) {
       debugPrint('[ForegroundService] Start service error: $e');
     }
+  }
+
+  /// Updates the cached auth token in the foreground task prefs so background polling doesn't 401 when token refreshes.
+  Future<void> updateAuthToken(String token) async {
+    if (kIsWeb) return;
+    try {
+      await FlutterForegroundTask.saveData(key: 'auth_token', value: token);
+    } catch (_) {}
   }
 
   /// Stops the foreground service.
@@ -315,7 +337,8 @@ class AppForegroundService {
   Future<void> requestBatteryExemption() async {
     if (kIsWeb) return;
     try {
-      final isIgnoring = await FlutterForegroundTask.isIgnoringBatteryOptimizations;
+      final isIgnoring =
+          await FlutterForegroundTask.isIgnoringBatteryOptimizations;
       if (!isIgnoring) {
         await FlutterForegroundTask.requestIgnoreBatteryOptimization();
       }

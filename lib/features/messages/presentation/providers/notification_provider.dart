@@ -13,6 +13,9 @@ import '../../../../core/services/foreground_service.dart';
 import '../../../../core/services/notification_service.dart';
 import '../../../../core/services/push_notification_service.dart';
 import '../../../../core/services/supabase_service.dart';
+import '../../../../core/services/presence/presence_web_stub.dart'
+    if (dart.library.js_interop) '../../../../core/services/presence/presence_web.dart'
+    as platform_presence;
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../conversations/domain/models/conversation.dart';
 import '../../../conversations/presentation/providers/conversation_provider.dart';
@@ -148,12 +151,20 @@ class BackgroundSyncManager with WidgetsBindingObserver {
 
   RealtimeChannel? _notificationChannel;
   Timer? _channelReconnectTimer;
+  StreamSubscription<AuthState>? _authSub;
   bool _isDisposed = false;
 
   void start() {
     _subscribeConversationsForUsernameCache();
     _setupNotificationChannel();
-    if (kIsWeb) return;
+    if (kIsWeb) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        NotificationService.instance.requestPermissions();
+      });
+      _startKeepAliveLoop();
+      unawaited(_checkUnreadMessages());
+      return;
+    }
     WidgetsBinding.instance.addObserver(this);
 
     // Active conversation checker for PushNotificationService
@@ -170,7 +181,15 @@ class BackgroundSyncManager with WidgetsBindingObserver {
 
     _syncCurrentDevice();
     _startForegroundServiceIfAllowed();
-    AppForegroundService.instance.addTaskDataCallback(_onReceiveForegroundTaskData);
+    AppForegroundService.instance.addTaskDataCallback(
+      _onReceiveForegroundTaskData,
+    );
+    _authSub = _client.auth.onAuthStateChange.listen((data) {
+      final token = data.session?.accessToken;
+      if (token != null) {
+        unawaited(AppForegroundService.instance.updateAuthToken(token));
+      }
+    });
     _startKeepAliveLoop();
     unawaited(_checkUnreadMessages());
   }
@@ -298,7 +317,11 @@ class BackgroundSyncManager with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     PushNotificationService.instance.activeConversationChecker = null;
     _keepAliveTimer?.cancel();
-    AppForegroundService.instance.removeTaskDataCallback(_onReceiveForegroundTaskData);
+    _authSub?.cancel();
+    _authSub = null;
+    AppForegroundService.instance.removeTaskDataCallback(
+      _onReceiveForegroundTaskData,
+    );
   }
 
   void _onReceiveForegroundTaskData(Object data) {
@@ -317,6 +340,11 @@ class BackgroundSyncManager with WidgetsBindingObserver {
     if (!settings.enabled) return;
 
     final session = _client.auth.currentSession;
+    if (session?.accessToken != null) {
+      unawaited(
+        AppForegroundService.instance.updateAuthToken(session!.accessToken),
+      );
+    }
     unawaited(
       AppForegroundService.instance.start(
         userId: userId,
@@ -387,9 +415,17 @@ class BackgroundSyncManager with WidgetsBindingObserver {
     });
   }
 
+  bool _isCheckingUnread = false;
+
   Future<void> _checkUnreadMessages() async {
+    if (_isCheckingUnread) return;
+    _isCheckingUnread = true;
+
     final currentUserId = _client.auth.currentUser?.id;
-    if (currentUserId == null) return;
+    if (currentUserId == null) {
+      _isCheckingUnread = false;
+      return;
+    }
 
     try {
       // Rolling 10-minute window avoids dropping messages due to clock drift
@@ -440,6 +476,8 @@ class BackgroundSyncManager with WidgetsBindingObserver {
       }
     } catch (e) {
       debugPrint('[BackgroundSync] Check unread error: $e');
+    } finally {
+      _isCheckingUnread = false;
     }
   }
 
@@ -487,18 +525,24 @@ class BackgroundSyncManager with WidgetsBindingObserver {
       } catch (_) {}
     }
 
-    // UNDER NO CIRCUMSTANCES should the webapp get a notification or play sound
-    if (kIsWeb) return;
-
-    // Check if user is currently looking at this conversation in the FOREGROUND
-    final isResumed = _ref.read(isAppResumedProvider);
-
-    // ONLY suppress notification if the app is actively resumed AND looking at this exact chat
-    if (isResumed && activeConversation == conversationId) {
-      debugPrint(
-        '[BackgroundSync] Suppressing notification: user actively viewing conv $conversationId',
-      );
-      return;
+    // On web, suppress notification if user is actively viewing this exact conversation in an active/focused tab
+    if (kIsWeb) {
+      final isWebHidden = platform_presence.isWebDocumentHidden();
+      if (!isWebHidden && activeConversation == conversationId) {
+        debugPrint(
+          '[BackgroundSync] Suppressing web notification: user actively viewing conv $conversationId in focused tab',
+        );
+        return;
+      }
+    } else {
+      // Check if user is currently looking at this conversation in the FOREGROUND on mobile
+      final isResumed = _ref.read(isAppResumedProvider);
+      if (isResumed && activeConversation == conversationId) {
+        debugPrint(
+          '[BackgroundSync] Suppressing notification: user actively viewing conv $conversationId',
+        );
+        return;
+      }
     }
 
     final settings = _ref.read(notificationSettingsProvider);
@@ -563,8 +607,9 @@ class BackgroundSyncManager with WidgetsBindingObserver {
     }
 
     final messageId = record['id'] as String?;
-    final notifId =
-        NotificationService.conversationNotificationId(conversationId);
+    final notifId = NotificationService.conversationNotificationId(
+      conversationId,
+    );
 
     debugPrint(
       '[BackgroundSync] Dispatching notification $notifId (msg: $messageId) for @$senderUsername: "$body"',
@@ -576,6 +621,7 @@ class BackgroundSyncManager with WidgetsBindingObserver {
       body: body,
       conversationId: conversationId,
       senderUsername: senderUsername,
+      messageId: messageId,
       isDiscreet: settings.discreet,
     );
   }
@@ -608,4 +654,3 @@ final messageNotificationListenerProvider = Provider<void>((ref) {
     syncManager.stop();
   });
 });
-

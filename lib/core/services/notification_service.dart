@@ -6,9 +6,9 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:go_router/go_router.dart';
 
 import '../routing/app_router.dart';
+import 'web_notification/web_notification.dart' as web_notif;
 
-/// Service managing system notifications on Android and iOS.
-/// Completely disabled on the Web platform.
+/// Service managing system notifications on Android, iOS, and Web.
 class NotificationService {
   NotificationService._();
   static final NotificationService instance = NotificationService._();
@@ -24,9 +24,12 @@ class NotificationService {
       'High-priority sound and vibration notifications for incoming anonymous messages';
 
   /// Initialize local notification plugins and channel for Android and iOS.
-  /// No-op on Web.
   Future<void> initialize() async {
-    if (kIsWeb || _initialized) return;
+    if (_initialized) return;
+    if (kIsWeb) {
+      _initialized = true;
+      return;
+    }
 
     const androidSettings = AndroidInitializationSettings(
       '@mipmap/ic_launcher',
@@ -57,10 +60,24 @@ class NotificationService {
     if (androidImplementation != null) {
       // Clean up legacy lower-importance channels to prevent Android caching issues
       try {
-        await androidImplementation.deleteNotificationChannel(channelId: 'anonapp_messages');
-        await androidImplementation.deleteNotificationChannel(channelId: 'anonapp_messages_v2');
-        await androidImplementation.deleteNotificationChannel(channelId: 'anonapp_messages_v4');
-        await androidImplementation.deleteNotificationChannel(channelId: 'anonapp_bg_service');
+        await androidImplementation.deleteNotificationChannel(
+          channelId: 'anonapp_messages',
+        );
+        await androidImplementation.deleteNotificationChannel(
+          channelId: 'anonapp_messages_v2',
+        );
+        await androidImplementation.deleteNotificationChannel(
+          channelId: 'anonapp_messages_v4',
+        );
+        await androidImplementation.deleteNotificationChannel(
+          channelId: 'anonapp_bg_service',
+        );
+        await androidImplementation.deleteNotificationChannel(
+          channelId: 'anonapp_bg_service_v2',
+        );
+        await androidImplementation.deleteNotificationChannel(
+          channelId: 'anonapp_bg_service_v3',
+        );
       } catch (_) {}
 
       await androidImplementation.createNotificationChannel(
@@ -74,15 +91,6 @@ class NotificationService {
           showBadge: true,
         ),
       );
-
-      // Proactively prompt for notification permission on Android 13+ (API 33+)
-      try {
-        await androidImplementation.requestNotificationsPermission();
-      } catch (e) {
-        debugPrint(
-          '[NotificationService] Error requesting notification permissions: $e',
-        );
-      }
     }
 
     _initialized = true;
@@ -96,6 +104,9 @@ class NotificationService {
   /// In-memory cache of stacked unread message lines per conversation.
   final Map<String, List<String>> _conversationMessageLines = {};
 
+  /// In-memory cache of seen message IDs per conversation to prevent duplicate notification stacking.
+  final Map<String, Set<String>> _conversationMessageIds = {};
+
   final Map<String, Set<int>> _activeConversationNotificationIds = {};
 
   @visibleForTesting
@@ -103,13 +114,17 @@ class NotificationService {
       List.unmodifiable(_conversationMessageLines[conversationId] ?? const []);
 
   @visibleForTesting
-  void resetConversationLines(String conversationId) =>
-      _conversationMessageLines.remove(conversationId);
+  void resetConversationLines(String conversationId) {
+    _conversationMessageLines.remove(conversationId);
+    _conversationMessageIds.remove(conversationId);
+  }
 
-  /// Request system notification permissions on Android (13+) and iOS.
+  /// Request system notification permissions on Android (13+), iOS, and Web.
   /// Returns true if granted or on unsupported platforms, false if explicitly denied.
   Future<bool> requestPermissions() async {
-    if (kIsWeb) return false;
+    if (kIsWeb) {
+      return web_notif.requestWebNotificationPermission();
+    }
 
     if (defaultTargetPlatform == TargetPlatform.android) {
       final androidImplementation = _notificationsPlugin
@@ -153,16 +168,28 @@ class NotificationService {
   }
 
   /// Display a stacked local notification for an incoming message under its conversation/sender.
-  /// Strictly no-ops on Web.
   Future<void> showMessageNotification({
     int? id,
     required String title,
     required String body,
     String? conversationId,
     String? senderUsername,
+    String? messageId,
     bool isDiscreet = false,
   }) async {
-    if (kIsWeb) return;
+    if (kIsWeb) {
+      web_notif.showWebNotification(
+        title: isDiscreet ? 'AnonApp' : title,
+        body: isDiscreet ? 'New message received' : body,
+        tag: conversationId != null ? 'anonapp_conv_$conversationId' : null,
+        onClick: () {
+          if (conversationId != null) {
+            rootNavigatorKey.currentContext?.go('/chat/$conversationId');
+          }
+        },
+      );
+      return;
+    }
 
     if (!_initialized) {
       await initialize();
@@ -179,14 +206,23 @@ class NotificationService {
           .putIfAbsent(conversationId, () => <int>{})
           .add(notifId);
 
-      // Stack message preview line
+      final messageIds = _conversationMessageIds.putIfAbsent(
+        conversationId,
+        () => <String>{},
+      );
+
       final lines = _conversationMessageLines.putIfAbsent(
         conversationId,
         () => <String>[],
       );
-      lines.add(body);
-      if (lines.length > 7) {
-        lines.removeAt(0); // Cap at 7 most recent lines
+
+      // Only add to preview lines if this messageId has not already been added
+      if (messageId == null || !messageIds.contains(messageId)) {
+        if (messageId != null) messageIds.add(messageId);
+        lines.add(body);
+        if (lines.length > 7) {
+          lines.removeAt(0); // Cap at 7 most recent lines
+        }
       }
     }
 
@@ -276,14 +312,17 @@ class NotificationService {
         '[NotificationService] Notification displayed successfully: id=$notifId title="$contentTitle" body="$body"',
       );
     } catch (e, st) {
-      debugPrint('[NotificationService] Error displaying notification: $e\n$st');
+      debugPrint(
+        '[NotificationService] Error displaying notification: $e\n$st',
+      );
     }
   }
 
   /// Cancel active notifications for a specific conversation and clear stacked history.
   Future<void> clearNotificationsForConversation(String conversationId) async {
-    if (kIsWeb) return;
     _conversationMessageLines.remove(conversationId);
+    _conversationMessageIds.remove(conversationId);
+    if (kIsWeb) return;
 
     final convNotifId = conversationNotificationId(conversationId);
     try {

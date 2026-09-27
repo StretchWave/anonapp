@@ -204,694 +204,717 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       onPopInvokedWithResult: (didPop, _) {
         if (didPop) {
           try {
-            if (ref.read(activeConversationIdProvider) == widget.conversationId) {
+            if (ref.read(activeConversationIdProvider) ==
+                widget.conversationId) {
               ref.read(activeConversationIdProvider.notifier).state = null;
             }
           } catch (_) {}
         }
       },
       child: Scaffold(
-      appBar: AppBar(
-        titleSpacing: _isSearching ? 8 : 0,
-        title: _isSearching
-            ? TextField(
-                controller: _searchController,
-                autofocus: true,
-                style: const TextStyle(
-                  color: AppColors.textPrimaryDark,
-                  fontSize: 15,
-                ),
-                decoration: InputDecoration(
-                  hintText: 'Search messages...',
-                  hintStyle: const TextStyle(
-                    color: AppColors.textMutedDark,
-                    fontSize: 14,
+        appBar: AppBar(
+          titleSpacing: _isSearching ? 8 : 0,
+          title: _isSearching
+              ? TextField(
+                  controller: _searchController,
+                  autofocus: true,
+                  style: const TextStyle(
+                    color: AppColors.textPrimaryDark,
+                    fontSize: 15,
                   ),
-                  border: InputBorder.none,
-                  suffixIcon: _searchController.text.isNotEmpty
-                      ? IconButton(
-                          icon: const Icon(
-                            Icons.clear_rounded,
-                            size: 18,
-                            color: AppColors.textMutedDark,
-                          ),
-                          onPressed: () => _searchController.clear(),
-                        )
-                      : null,
-                ),
-              )
-            : Row(
-                children: [
-                  // Avatar with gradient border and presence badge
-                  Stack(
-                    children: [
-                      Container(
-                        width: 38,
-                        height: 38,
-                        decoration: const BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: AppColors.accentGradient,
-                        ),
-                        padding: const EdgeInsets.all(2),
-                        child: Container(
+                  decoration: InputDecoration(
+                    hintText: 'Search messages...',
+                    hintStyle: const TextStyle(
+                      color: AppColors.textMutedDark,
+                      fontSize: 14,
+                    ),
+                    border: InputBorder.none,
+                    suffixIcon: _searchController.text.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(
+                              Icons.clear_rounded,
+                              size: 18,
+                              color: AppColors.textMutedDark,
+                            ),
+                            onPressed: () => _searchController.clear(),
+                          )
+                        : null,
+                  ),
+                )
+              : Row(
+                  children: [
+                    // Avatar with gradient border and presence badge
+                    Stack(
+                      children: [
+                        Container(
+                          width: 38,
+                          height: 38,
                           decoration: const BoxDecoration(
                             shape: BoxShape.circle,
-                            color: AppColors.cardDark,
+                            gradient: AppColors.accentGradient,
                           ),
-                          alignment: Alignment.center,
-                          child: Text(
-                            initial,
-                            style: const TextStyle(
-                              color: AppColors.primaryLight,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
+                          padding: const EdgeInsets.all(2),
+                          child: Container(
+                            decoration: const BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: AppColors.cardDark,
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              initial,
+                              style: const TextStyle(
+                                color: AppColors.primaryLight,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                      Positioned(
-                        right: 0,
-                        bottom: 0,
-                        child: Container(
-                          width: 10,
-                          height: 10,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: isOtherOnline
-                                ? AppColors.online
-                                : AppColors.offline,
-                            border: Border.all(
-                              color: AppColors.surfaceDark,
-                              width: 2,
-                            ),
-                            boxShadow: isOtherOnline
-                                ? [
-                                    BoxShadow(
-                                      color: AppColors.online.withValues(
-                                        alpha: 0.6,
+                        Positioned(
+                          right: 0,
+                          bottom: 0,
+                          child: Container(
+                            width: 10,
+                            height: 10,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: isOtherOnline
+                                  ? AppColors.online
+                                  : AppColors.offline,
+                              border: Border.all(
+                                color: AppColors.surfaceDark,
+                                width: 2,
+                              ),
+                              boxShadow: isOtherOnline
+                                  ? [
+                                      BoxShadow(
+                                        color: AppColors.online.withValues(
+                                          alpha: 0.6,
+                                        ),
+                                        blurRadius: 4,
+                                        spreadRadius: 1,
                                       ),
-                                      blurRadius: 4,
-                                      spreadRadius: 1,
-                                    ),
-                                  ]
-                                : null,
+                                    ]
+                                  : null,
+                            ),
                           ),
                         ),
+                      ],
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            displayTitle,
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.textPrimaryDark,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 2),
+                          Row(
+                            children: [
+                              Container(
+                                width: 6,
+                                height: 6,
+                                decoration: BoxDecoration(
+                                  color: isOtherTyping
+                                      ? AppColors.primaryLight
+                                      : (isOtherOnline
+                                            ? AppColors.online
+                                            : AppColors.offline),
+                                  shape: BoxShape.circle,
+                                  boxShadow: (isOtherOnline && !isOtherTyping)
+                                      ? [
+                                          BoxShadow(
+                                            color: AppColors.online.withValues(
+                                              alpha: 0.6,
+                                            ),
+                                            blurRadius: 4,
+                                          ),
+                                        ]
+                                      : null,
+                                ),
+                              ),
+                              const SizedBox(width: 5),
+                              Text(
+                                isOtherTyping
+                                    ? 'typing...'
+                                    : (isOtherOnline
+                                          ? 'Online · E2EE'
+                                          : 'Offline · E2EE'),
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: isOtherTyping
+                                      ? AppColors.primaryLight
+                                      : (isOtherOnline
+                                            ? AppColors.online
+                                            : AppColors.textMutedDark),
+                                  fontWeight: FontWeight.w500,
+                                  fontStyle: isOtherTyping
+                                      ? FontStyle.italic
+                                      : FontStyle.normal,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
+                  ],
+                ),
+          actions: [
+            if (_isSearching)
+              IconButton(
+                icon: const Icon(
+                  Icons.close_rounded,
+                  color: AppColors.textSecondaryDark,
+                ),
+                tooltip: 'Close search',
+                onPressed: () {
+                  setState(() {
+                    _isSearching = false;
+                    _searchController.clear();
+                  });
+                },
+              )
+            else ...[
+              IconButton(
+                icon: const Icon(
+                  Icons.search_rounded,
+                  color: AppColors.textSecondaryDark,
+                ),
+                tooltip: 'Search messages',
+                onPressed: () => setState(() => _isSearching = true),
+              ),
+              PopupMenuButton<String>(
+                icon: const Icon(
+                  Icons.more_vert_rounded,
+                  color: AppColors.textSecondaryDark,
+                ),
+                tooltip: 'Chat Options',
+                color: AppColors.surfaceDark,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  side: const BorderSide(
+                    color: AppColors.surfaceBorder,
+                    width: 1,
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                ),
+                onSelected: (value) {
+                  switch (value) {
+                    case 'meet_again':
+                      _showMeetAgainDialog(context);
+                      break;
+                    case 'disappearing':
+                      _showDisappearingDialog(context);
+                      break;
+                    case 'block_user':
+                      _confirmBlockUser(context, ref);
+                      break;
+                    case 'report_user':
+                      _showReportUserDialog(context, ref);
+                      break;
+                    case 'clear_chat':
+                      _confirmClearChat(context, messagesNotifier);
+                      break;
+                    case 'delete_chat':
+                      _confirmDeleteChat(context, messagesNotifier);
+                      break;
+                    case 'security_info':
+                      _showSecurityDialog(context);
+                      break;
+                  }
+                },
+                itemBuilder: (ctx) => [
+                  const PopupMenuItem(
+                    value: 'meet_again',
+                    child: Row(
                       children: [
+                        Icon(
+                          Icons.handshake_outlined,
+                          color: AppColors.secondary,
+                          size: 18,
+                        ),
+                        SizedBox(width: 12),
                         Text(
-                          displayTitle,
-                          style: const TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
+                          'Meet Again',
+                          style: TextStyle(
+                            color: AppColors.secondary,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'disappearing',
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.timer_outlined,
+                          color: AppColors.primaryLight,
+                          size: 18,
+                        ),
+                        SizedBox(width: 12),
+                        Text(
+                          'Disappearing Messages',
+                          style: TextStyle(
+                            color: AppColors.textPrimaryDark,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'delete_chat',
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.delete_outline_rounded,
+                          color: AppColors.error,
+                          size: 18,
+                        ),
+                        SizedBox(width: 12),
+                        Text(
+                          'Delete Chat',
+                          style: TextStyle(
+                            color: AppColors.error,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'clear_chat',
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.cleaning_services_rounded,
+                          color: AppColors.error,
+                          size: 18,
+                        ),
+                        SizedBox(width: 12),
+                        Text(
+                          'Clear Chat (Both)',
+                          style: TextStyle(
+                            color: AppColors.error,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'report_user',
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.flag_outlined,
+                          color: AppColors.error,
+                          size: 18,
+                        ),
+                        SizedBox(width: 12),
+                        Text(
+                          'Report User',
+                          style: TextStyle(
+                            color: AppColors.error,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'block_user',
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.block_rounded,
+                          color: AppColors.error,
+                          size: 18,
+                        ),
+                        SizedBox(width: 12),
+                        Text(
+                          'Block User',
+                          style: TextStyle(
+                            color: AppColors.error,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'security_info',
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.shield_outlined,
+                          size: 18,
+                          color: AppColors.primaryLight,
+                        ),
+                        SizedBox(width: 12),
+                        Text(
+                          'Anonymity Info',
+                          style: TextStyle(
+                            fontSize: 13,
                             color: AppColors.textPrimaryDark,
                           ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 2),
-                        Row(
-                          children: [
-                            Container(
-                              width: 6,
-                              height: 6,
-                              decoration: BoxDecoration(
-                                color: isOtherTyping
-                                    ? AppColors.primaryLight
-                                    : (isOtherOnline
-                                          ? AppColors.online
-                                          : AppColors.offline),
-                                shape: BoxShape.circle,
-                                boxShadow: (isOtherOnline && !isOtherTyping)
-                                    ? [
-                                        BoxShadow(
-                                          color: AppColors.online.withValues(
-                                            alpha: 0.6,
-                                          ),
-                                          blurRadius: 4,
-                                        ),
-                                      ]
-                                    : null,
-                              ),
-                            ),
-                            const SizedBox(width: 5),
-                            Text(
-                              isOtherTyping
-                                  ? 'typing...'
-                                  : (isOtherOnline
-                                        ? 'Online · E2EE'
-                                        : 'Offline · E2EE'),
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: isOtherTyping
-                                    ? AppColors.primaryLight
-                                    : (isOtherOnline
-                                          ? AppColors.online
-                                          : AppColors.textMutedDark),
-                                fontWeight: FontWeight.w500,
-                                fontStyle: isOtherTyping
-                                    ? FontStyle.italic
-                                    : FontStyle.normal,
-                              ),
-                            ),
-                          ],
                         ),
                       ],
                     ),
                   ),
                 ],
               ),
-        actions: [
-          if (_isSearching)
-            IconButton(
-              icon: const Icon(
-                Icons.close_rounded,
-                color: AppColors.textSecondaryDark,
-              ),
-              tooltip: 'Close search',
-              onPressed: () {
-                setState(() {
-                  _isSearching = false;
-                  _searchController.clear();
-                });
-              },
-            )
-          else ...[
-            IconButton(
-              icon: const Icon(
-                Icons.search_rounded,
-                color: AppColors.textSecondaryDark,
-              ),
-              tooltip: 'Search messages',
-              onPressed: () => setState(() => _isSearching = true),
-            ),
-            PopupMenuButton<String>(
-              icon: const Icon(
-                Icons.more_vert_rounded,
-                color: AppColors.textSecondaryDark,
-              ),
-              tooltip: 'Chat Options',
-              color: AppColors.surfaceDark,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-                side: const BorderSide(
-                  color: AppColors.surfaceBorder,
-                  width: 1,
-                ),
-              ),
-              onSelected: (value) {
-                switch (value) {
-                  case 'meet_again':
-                    _showMeetAgainDialog(context);
-                    break;
-                  case 'disappearing':
-                    _showDisappearingDialog(context);
-                    break;
-                  case 'block_user':
-                    _confirmBlockUser(context, ref);
-                    break;
-                  case 'report_user':
-                    _showReportUserDialog(context, ref);
-                    break;
-                  case 'clear_chat':
-                    _confirmClearChat(context, messagesNotifier);
-                    break;
-                  case 'delete_chat':
-                    _confirmDeleteChat(context, messagesNotifier);
-                    break;
-                  case 'security_info':
-                    _showSecurityDialog(context);
-                    break;
-                }
-              },
-              itemBuilder: (ctx) => [
-                const PopupMenuItem(
-                  value: 'meet_again',
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.handshake_outlined,
-                        color: AppColors.secondary,
-                        size: 18,
-                      ),
-                      SizedBox(width: 12),
-                      Text(
-                        'Meet Again',
-                        style: TextStyle(
-                          color: AppColors.secondary,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const PopupMenuItem(
-                  value: 'disappearing',
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.timer_outlined,
-                        color: AppColors.primaryLight,
-                        size: 18,
-                      ),
-                      SizedBox(width: 12),
-                      Text(
-                        'Disappearing Messages',
-                        style: TextStyle(
-                          color: AppColors.textPrimaryDark,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const PopupMenuItem(
-                  value: 'delete_chat',
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.delete_outline_rounded,
-                        color: AppColors.error,
-                        size: 18,
-                      ),
-                      SizedBox(width: 12),
-                      Text(
-                        'Delete Chat',
-                        style: TextStyle(
-                          color: AppColors.error,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const PopupMenuItem(
-                  value: 'clear_chat',
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.cleaning_services_rounded,
-                        color: AppColors.error,
-                        size: 18,
-                      ),
-                      SizedBox(width: 12),
-                      Text(
-                        'Clear Chat (Both)',
-                        style: TextStyle(color: AppColors.error, fontSize: 13),
-                      ),
-                    ],
-                  ),
-                ),
-                const PopupMenuItem(
-                  value: 'report_user',
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.flag_outlined,
-                        color: AppColors.error,
-                        size: 18,
-                      ),
-                      SizedBox(width: 12),
-                      Text(
-                        'Report User',
-                        style: TextStyle(color: AppColors.error, fontSize: 13),
-                      ),
-                    ],
-                  ),
-                ),
-                const PopupMenuItem(
-                  value: 'block_user',
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.block_rounded,
-                        color: AppColors.error,
-                        size: 18,
-                      ),
-                      SizedBox(width: 12),
-                      Text(
-                        'Block User',
-                        style: TextStyle(color: AppColors.error, fontSize: 13),
-                      ),
-                    ],
-                  ),
-                ),
-                const PopupMenuItem(
-                  value: 'security_info',
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.shield_outlined,
-                        size: 18,
-                        color: AppColors.primaryLight,
-                      ),
-                      SizedBox(width: 12),
-                      Text(
-                        'Anonymity Info',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: AppColors.textPrimaryDark,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+            ],
+            const SizedBox(width: 6),
           ],
-          const SizedBox(width: 6),
-        ],
-      ),
-      body: Column(
-        children: [
-          // Messages list
-          Expanded(
-            child: messagesAsync.when(
-              loading: () => const Center(
-                child: SizedBox(
-                  width: 28,
-                  height: 28,
-                  child: CircularProgressIndicator(strokeWidth: 2.5),
-                ),
-              ),
-              error: (error, _) => Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.error_outline_rounded,
-                        color: AppColors.error,
-                        size: 40,
-                      ),
-                      const SizedBox(height: 12),
-                      const Text(
-                        'Failed to load messages',
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        error.toString(),
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textMutedDark,
-                        ),
-                      ),
-                    ],
+        ),
+        body: Column(
+          children: [
+            // Messages list
+            Expanded(
+              child: messagesAsync.when(
+                loading: () => const Center(
+                  child: SizedBox(
+                    width: 28,
+                    height: 28,
+                    child: CircularProgressIndicator(strokeWidth: 2.5),
                   ),
                 ),
-              ),
-              data: (messages) {
-                final query = _searchController.text.trim().toLowerCase();
-                final displayed = query.isEmpty
-                    ? messages
-                    : messages.where((m) {
-                        return (m.content?.toLowerCase().contains(query) ??
-                                false) ||
-                            (m.displayText.toLowerCase().contains(query));
-                      }).toList();
-
-                if (displayed.isEmpty) {
-                  if (query.isNotEmpty) {
-                    return Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.search_off_rounded,
-                            size: 48,
+                error: (error, _) => Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.error_outline_rounded,
+                          color: AppColors.error,
+                          size: 40,
+                        ),
+                        const SizedBox(height: 12),
+                        const Text(
+                          'Failed to load messages',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          error.toString(),
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 12,
                             color: AppColors.textMutedDark,
                           ),
-                          const SizedBox(height: 12),
-                          Text(
-                            'No messages matching "$query"',
-                            style: const TextStyle(
-                              color: AppColors.textSecondaryDark,
-                              fontSize: 14,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                data: (messages) {
+                  final query = _searchController.text.trim().toLowerCase();
+                  final displayed = query.isEmpty
+                      ? messages
+                      : messages.where((m) {
+                          return (m.content?.toLowerCase().contains(query) ??
+                                  false) ||
+                              (m.displayText.toLowerCase().contains(query));
+                        }).toList();
+
+                  if (displayed.isEmpty) {
+                    if (query.isNotEmpty) {
+                      return Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.search_off_rounded,
+                              size: 48,
+                              color: AppColors.textMutedDark,
                             ),
-                          ),
-                        ],
+                            const SizedBox(height: 12),
+                            Text(
+                              'No messages matching "$query"',
+                              style: const TextStyle(
+                                color: AppColors.textSecondaryDark,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+
+                    return Center(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(18),
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: AppColors.primary.withAlpha(22),
+                              ),
+                              child: const Icon(
+                                Icons.lock_clock_rounded,
+                                size: 38,
+                                color: AppColors.primaryLight,
+                              ),
+                            ),
+                            const SizedBox(height: 14),
+                            const Text(
+                              'Say hello anonymously!',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.textPrimaryDark,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            const Text(
+                              'Messages and media are end-to-end encrypted with AES-256-GCM.\nNo real identity is exposed.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 12.5,
+                                color: AppColors.textSecondaryDark,
+                                height: 1.4,
+                              ),
+                            ),
+                            const SizedBox(height: 22),
+
+                            // Conversation Starters
+                            const Text(
+                              'Conversation Starters',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.secondary,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              alignment: WrapAlignment.center,
+                              children: ChatScreen._conversationStarters.map((
+                                starter,
+                              ) {
+                                return ActionChip(
+                                  label: Text(
+                                    starter,
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: AppColors.textPrimaryDark,
+                                    ),
+                                  ),
+                                  backgroundColor: AppColors.surfaceVariantDark,
+                                  side: const BorderSide(
+                                    color: AppColors.surfaceBorder,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                  onPressed: () {
+                                    messagesNotifier.sendMessage(starter);
+                                  },
+                                );
+                              }).toList(),
+                            ),
+                          ],
+                        ),
                       ),
                     );
                   }
 
-                  return Center(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.all(24),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(18),
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: AppColors.primary.withAlpha(22),
-                            ),
-                            child: const Icon(
-                              Icons.lock_clock_rounded,
-                              size: 38,
-                              color: AppColors.primaryLight,
-                            ),
-                          ),
-                          const SizedBox(height: 14),
-                          const Text(
-                            'Say hello anonymously!',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.textPrimaryDark,
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          const Text(
-                            'Messages and media are end-to-end encrypted with AES-256-GCM.\nNo real identity is exposed.',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 12.5,
-                              color: AppColors.textSecondaryDark,
-                              height: 1.4,
-                            ),
-                          ),
-                          const SizedBox(height: 22),
-
-                          // Conversation Starters
-                          const Text(
-                            'Conversation Starters',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.secondary,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            alignment: WrapAlignment.center,
-                            children: ChatScreen._conversationStarters.map((
-                              starter,
-                            ) {
-                              return ActionChip(
-                                label: Text(
-                                  starter,
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    color: AppColors.textPrimaryDark,
-                                  ),
-                                ),
-                                backgroundColor: AppColors.surfaceVariantDark,
-                                side: const BorderSide(
-                                  color: AppColors.surfaceBorder,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                                onPressed: () {
-                                  messagesNotifier.sendMessage(starter);
-                                },
+                  return Stack(
+                    children: [
+                      ListView.builder(
+                        controller: _scrollController,
+                        reverse: true,
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        itemCount: displayed.length,
+                        itemBuilder: (context, index) {
+                          final message = displayed[index];
+                          return MessageBubble(
+                            message: message,
+                            isMine: message.isMine(currentUserId),
+                            conversationId: widget.conversationId,
+                            otherUsername: widget.otherUsername,
+                            onReply: (msg) {
+                              ref
+                                  .read(
+                                    activeReplyProvider(
+                                      widget.conversationId,
+                                    ).notifier,
+                                  )
+                                  .state = ReplyMessageInfo(
+                                id: msg.id,
+                                content: msg.displayText,
+                                senderName: msg.isMine(currentUserId)
+                                    ? 'You'
+                                    : (widget.otherUsername != null
+                                          ? '@${widget.otherUsername}'
+                                          : 'Anon'),
                               );
-                            }).toList(),
-                          ),
-                        ],
+                            },
+                            onDelete: () =>
+                                messagesNotifier.deleteMessage(message.id),
+                            onViewOnceOpened: () =>
+                                messagesNotifier.markViewOnceOpened(message.id),
+                          );
+                        },
                       ),
-                    ),
-                  );
-                }
-
-                return Stack(
-                  children: [
-                    ListView.builder(
-                      controller: _scrollController,
-                      reverse: true,
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      itemCount: displayed.length,
-                      itemBuilder: (context, index) {
-                        final message = displayed[index];
-                        return MessageBubble(
-                          message: message,
-                          isMine: message.isMine(currentUserId),
-                          conversationId: widget.conversationId,
-                          otherUsername: widget.otherUsername,
-                          onReply: (msg) {
-                            ref
-                                .read(
-                                  activeReplyProvider(
-                                    widget.conversationId,
-                                  ).notifier,
-                                )
-                                .state = ReplyMessageInfo(
-                              id: msg.id,
-                              content: msg.displayText,
-                              senderName: msg.isMine(currentUserId)
-                                  ? 'You'
-                                  : (widget.otherUsername != null
-                                        ? '@${widget.otherUsername}'
-                                        : 'Anon'),
-                            );
-                          },
-                          onDelete: () =>
-                              messagesNotifier.deleteMessage(message.id),
-                          onViewOnceOpened: () =>
-                              messagesNotifier.markViewOnceOpened(message.id),
-                        );
-                      },
-                    ),
-                    if (_showScrollToBottom)
-                      Positioned(
-                        bottom: 12,
-                        right: 16,
-                        child: FloatingActionButton.small(
-                          backgroundColor: AppColors.surfaceDark,
-                          foregroundColor: AppColors.primaryLight,
-                          elevation: 4,
-                          shape: const CircleBorder(
-                            side: BorderSide(
-                              color: AppColors.surfaceBorder,
-                              width: 1,
+                      if (_showScrollToBottom)
+                        Positioned(
+                          bottom: 12,
+                          right: 16,
+                          child: FloatingActionButton.small(
+                            backgroundColor: AppColors.surfaceDark,
+                            foregroundColor: AppColors.primaryLight,
+                            elevation: 4,
+                            shape: const CircleBorder(
+                              side: BorderSide(
+                                color: AppColors.surfaceBorder,
+                                width: 1,
+                              ),
                             ),
-                          ),
-                          onPressed: _scrollToBottom,
-                          child: const Icon(
-                            Icons.keyboard_arrow_down_rounded,
-                            size: 24,
+                            onPressed: _scrollToBottom,
+                            child: const Icon(
+                              Icons.keyboard_arrow_down_rounded,
+                              size: 24,
+                            ),
                           ),
                         ),
-                      ),
-                  ],
-                );
-              },
-            ),
-          ),
-
-          // Live Typing Indicator
-          if (isOtherTyping)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 4),
-              alignment: Alignment.centerLeft,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const SizedBox(
-                    width: 10,
-                    height: 10,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 1.5,
-                      valueColor: AlwaysStoppedAnimation(
-                        AppColors.primaryLight,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    '${widget.otherUsername != null ? "@${widget.otherUsername}" : "Anon"} is typing...',
-                    style: const TextStyle(
-                      fontSize: 11.5,
-                      fontStyle: FontStyle.italic,
-                      color: AppColors.primaryLight,
-                    ),
-                  ),
-                ],
+                    ],
+                  );
+                },
               ),
             ),
 
-          // Input bar
-          ChatInputBar(
-            replyMessage: activeReply,
-            onCancelReply: () {
-              ref
-                      .read(activeReplyProvider(widget.conversationId).notifier)
-                      .state =
-                  null;
-            },
-            onTyping: () => messagesNotifier.sendTyping(),
-            onSend: (text) {
-              messagesNotifier.sendMessage(
-                text,
-                replyToId: activeReply?.id,
-                replyToContent: activeReply?.content,
-                replyToSender: activeReply?.senderName,
-              );
-              ref
-                      .read(activeReplyProvider(widget.conversationId).notifier)
-                      .state =
-                  null;
-            },
-            onSendImage: (base64Img, caption, isViewOnce) {
-              messagesNotifier.sendImageMessage(
-                base64Image: base64Img,
-                caption: caption,
-                isViewOnce: isViewOnce,
-                replyToId: activeReply?.id,
-                replyToContent: activeReply?.content,
-                replyToSender: activeReply?.senderName,
-              );
-              ref
-                      .read(activeReplyProvider(widget.conversationId).notifier)
-                      .state =
-                  null;
-            },
-            onSendVoice: (base64Audio, durationMs) {
-              messagesNotifier.sendVoiceMessage(
-                base64Audio: base64Audio,
-                durationMs: durationMs,
-                replyToId: activeReply?.id,
-                replyToContent: activeReply?.content,
-                replyToSender: activeReply?.senderName,
-              );
-              ref
-                      .read(activeReplyProvider(widget.conversationId).notifier)
-                      .state =
-                  null;
-            },
-            onSendDocument: (base64Doc, fileName, fileSize, ext) {
-              messagesNotifier.sendDocumentMessage(
-                base64Document: base64Doc,
-                fileName: fileName,
-                fileSize: fileSize,
-                mimeType: ext,
-                replyToId: activeReply?.id,
-                replyToContent: activeReply?.content,
-                replyToSender: activeReply?.senderName,
-              );
-              ref
-                      .read(activeReplyProvider(widget.conversationId).notifier)
-                      .state =
-                  null;
-            },
-          ),
-        ],
+            // Live Typing Indicator
+            if (isOtherTyping)
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 4,
+                ),
+                alignment: Alignment.centerLeft,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const SizedBox(
+                      width: 10,
+                      height: 10,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 1.5,
+                        valueColor: AlwaysStoppedAnimation(
+                          AppColors.primaryLight,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${widget.otherUsername != null ? "@${widget.otherUsername}" : "Anon"} is typing...',
+                      style: const TextStyle(
+                        fontSize: 11.5,
+                        fontStyle: FontStyle.italic,
+                        color: AppColors.primaryLight,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+            // Input bar
+            ChatInputBar(
+              replyMessage: activeReply,
+              onCancelReply: () {
+                ref
+                        .read(
+                          activeReplyProvider(widget.conversationId).notifier,
+                        )
+                        .state =
+                    null;
+              },
+              onTyping: () => messagesNotifier.sendTyping(),
+              onSend: (text) {
+                messagesNotifier.sendMessage(
+                  text,
+                  replyToId: activeReply?.id,
+                  replyToContent: activeReply?.content,
+                  replyToSender: activeReply?.senderName,
+                );
+                ref
+                        .read(
+                          activeReplyProvider(widget.conversationId).notifier,
+                        )
+                        .state =
+                    null;
+              },
+              onSendImage: (base64Img, caption, isViewOnce) {
+                messagesNotifier.sendImageMessage(
+                  base64Image: base64Img,
+                  caption: caption,
+                  isViewOnce: isViewOnce,
+                  replyToId: activeReply?.id,
+                  replyToContent: activeReply?.content,
+                  replyToSender: activeReply?.senderName,
+                );
+                ref
+                        .read(
+                          activeReplyProvider(widget.conversationId).notifier,
+                        )
+                        .state =
+                    null;
+              },
+              onSendVoice: (base64Audio, durationMs) {
+                messagesNotifier.sendVoiceMessage(
+                  base64Audio: base64Audio,
+                  durationMs: durationMs,
+                  replyToId: activeReply?.id,
+                  replyToContent: activeReply?.content,
+                  replyToSender: activeReply?.senderName,
+                );
+                ref
+                        .read(
+                          activeReplyProvider(widget.conversationId).notifier,
+                        )
+                        .state =
+                    null;
+              },
+              onSendDocument: (base64Doc, fileName, fileSize, ext) {
+                messagesNotifier.sendDocumentMessage(
+                  base64Document: base64Doc,
+                  fileName: fileName,
+                  fileSize: fileSize,
+                  mimeType: ext,
+                  replyToId: activeReply?.id,
+                  replyToContent: activeReply?.content,
+                  replyToSender: activeReply?.senderName,
+                );
+                ref
+                        .read(
+                          activeReplyProvider(widget.conversationId).notifier,
+                        )
+                        .state =
+                    null;
+              },
+            ),
+          ],
+        ),
       ),
-    ),
-  );
+    );
   }
 
   void _showMeetAgainDialog(BuildContext context) {

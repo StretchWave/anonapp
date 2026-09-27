@@ -151,7 +151,7 @@ class MessagesNotifier extends StateNotifier<AsyncValue<List<Message>>> {
       // Auto-mark unread incoming messages as read only when actively viewing in resumed state
       final isResumed = _ref.read(isAppResumedProvider);
       final activeConv = _ref.read(activeConversationIdProvider);
-      if (isResumed && (activeConv == _conversationId || activeConv == null)) {
+      if (isResumed && activeConv == _conversationId) {
         unawaited(
           _repo.markMessagesAsRead(_conversationId).then((_) {
             try {
@@ -209,7 +209,7 @@ class MessagesNotifier extends StateNotifier<AsyncValue<List<Message>>> {
       // Mark incoming messages as read if currently resumed and viewing this chat
       final isResumed = _ref.read(isAppResumedProvider);
       final activeConv = _ref.read(activeConversationIdProvider);
-      if (isResumed && (activeConv == _conversationId || activeConv == null)) {
+      if (isResumed && activeConv == _conversationId) {
         unawaited(
           _repo.markMessagesAsRead(_conversationId).then((_) {
             try {

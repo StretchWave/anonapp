@@ -332,6 +332,7 @@ class PushNotificationService {
         body: body,
         conversationId: conversationId,
         senderUsername: senderUsername,
+        messageId: (data['message_id'] as String?) ?? message.messageId,
       ),
     );
   }

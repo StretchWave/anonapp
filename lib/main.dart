@@ -14,11 +14,13 @@ Future<void> main() async {
   // Initialise Supabase SDK (reads env from --dart-define / .env).
   await SupabaseService.initialize();
 
-  // Initialize notifications, foreground service, and FCM exclusively on mobile (Android / iOS)
+  // Initialize notifications, foreground service, and FCM
   if (!kIsWeb) {
     AppForegroundService.instance.initialize();
     await NotificationService.instance.initialize();
     await PushNotificationService.instance.initialize();
+  } else {
+    await NotificationService.instance.initialize();
   }
 
   runApp(const ProviderScope(child: AnonApp()));

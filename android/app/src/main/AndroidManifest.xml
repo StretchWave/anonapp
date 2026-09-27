@@ -21,7 +21,6 @@
             android:foregroundServiceType="dataSync|remoteMessaging"
             android:stopWithTask="false"
             android:exported="false" />
-
         <!-- Firebase Cloud Messaging Defaults -->
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_channel_id"
