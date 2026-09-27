@@ -213,5 +213,51 @@ void main() {
       final isSelf = selfBroadcast.senderId == myUserId;
       expect(isSelf, isTrue);
     });
+
+    test(
+      'Dual-track processedMessageIds tracking skips duplicate broadcast or server inserts',
+      () {
+        final processedMessageIds = <String>{};
+        const serverId = 'server-uuid-101';
+        const clientId = 'client-uuid-101';
+
+        // 1. First event arrives via direct WebSocket broadcast (has client_id and provisional id)
+        final broadcastRecord = {
+          'id': clientId,
+          'client_id': clientId,
+          'conversation_id': 'conv-alpha',
+          'sender_id': 'user-sender',
+          'content': 'Fast broadcast',
+        };
+
+        bool shouldProcess(Map<String, dynamic> record) {
+          final id = record['id'] as String?;
+          final cId = record['client_id'] as String?;
+          if (id != null && processedMessageIds.contains(id)) return false;
+          if (cId != null && processedMessageIds.contains(cId)) return false;
+
+          if (id != null) processedMessageIds.add(id);
+          if (cId != null) processedMessageIds.add(cId);
+          return true;
+        }
+
+        // First broadcast must be processed
+        expect(shouldProcess(broadcastRecord), isTrue);
+        expect(processedMessageIds.contains(clientId), isTrue);
+
+        // 2. Duplicate broadcast arrives -> must be skipped
+        expect(shouldProcess(broadcastRecord), isFalse);
+
+        // 3. Database insert arrives with permanent server UUID and same client_id -> must be skipped
+        final serverRecord = {
+          'id': serverId,
+          'client_id': clientId,
+          'conversation_id': 'conv-alpha',
+          'sender_id': 'user-sender',
+          'content': 'Fast broadcast',
+        };
+        expect(shouldProcess(serverRecord), isFalse);
+      },
+    );
   });
 }

@@ -13,9 +13,6 @@ import '../../../../core/services/foreground_service.dart';
 import '../../../../core/services/notification_service.dart';
 import '../../../../core/services/push_notification_service.dart';
 import '../../../../core/services/supabase_service.dart';
-import '../../../../core/services/presence/presence_web_stub.dart'
-    if (dart.library.js_interop) '../../../../core/services/presence/presence_web.dart'
-    as platform_presence;
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../conversations/domain/models/conversation.dart';
 import '../../../conversations/presentation/providers/conversation_provider.dart';
@@ -158,9 +155,6 @@ class BackgroundSyncManager with WidgetsBindingObserver {
     _subscribeConversationsForUsernameCache();
     _setupNotificationChannel();
     if (kIsWeb) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        NotificationService.instance.requestPermissions();
-      });
       _startKeepAliveLoop();
       unawaited(_checkUnreadMessages());
       return;
@@ -240,6 +234,26 @@ class BackgroundSyncManager with WidgetsBindingObserver {
                 }
               }
             } catch (_) {}
+          },
+        )
+        .onBroadcast(
+          event: 'new_message',
+          callback: (payload) async {
+            try {
+              final raw = payload['message'];
+              if (raw is Map<String, dynamic> && raw.isNotEmpty) {
+                final senderId = raw['sender_id'] as String?;
+                if (senderId == currentUserId) return;
+                debugPrint(
+                  '[NotificationListener] WebSocket direct user broadcast received: ${raw['id']}',
+                );
+                await dispatchNotificationForRecord(raw);
+              }
+            } catch (e) {
+              debugPrint(
+                '[NotificationListener] Error handling broadcast notification: $e',
+              );
+            }
           },
         );
 
@@ -409,10 +423,16 @@ class BackgroundSyncManager with WidgetsBindingObserver {
 
   void _startKeepAliveLoop() {
     _keepAliveTimer?.cancel();
-    // Check for missed unread messages every 4 seconds as a reliable background fallback
-    _keepAliveTimer = Timer.periodic(const Duration(seconds: 4), (_) async {
-      await _checkUnreadMessages();
-    });
+    // Fast 1.5s background keepalive loop for sub-second reconciliation fallback
+    _keepAliveTimer = Timer.periodic(
+      const Duration(milliseconds: 1500),
+      (_) async {
+        await _checkUnreadMessages();
+        if (!kIsWeb) {
+          AppForegroundService.instance.pingBackground();
+        }
+      },
+    );
   }
 
   bool _isCheckingUnread = false;
@@ -502,12 +522,17 @@ class BackgroundSyncManager with WidgetsBindingObserver {
     }
 
     final id = record['id'] as String?;
+    final clientId = record['client_id'] as String?;
     if (id != null) {
       if (_processedMessageIds.contains(id)) return;
       _processedMessageIds.add(id);
-      if (_processedMessageIds.length > 300) {
-        _processedMessageIds.remove(_processedMessageIds.first);
-      }
+    }
+    if (clientId != null) {
+      if (_processedMessageIds.contains(clientId)) return;
+      _processedMessageIds.add(clientId);
+    }
+    if (_processedMessageIds.length > 500) {
+      _processedMessageIds.remove(_processedMessageIds.first);
     }
 
     // Invalidate conversations list so unread counter updates in real time
@@ -525,24 +550,16 @@ class BackgroundSyncManager with WidgetsBindingObserver {
       } catch (_) {}
     }
 
-    // On web, suppress notification if user is actively viewing this exact conversation in an active/focused tab
-    if (kIsWeb) {
-      final isWebHidden = platform_presence.isWebDocumentHidden();
-      if (!isWebHidden && activeConversation == conversationId) {
-        debugPrint(
-          '[BackgroundSync] Suppressing web notification: user actively viewing conv $conversationId in focused tab',
-        );
-        return;
-      }
-    } else {
-      // Check if user is currently looking at this conversation in the FOREGROUND on mobile
-      final isResumed = _ref.read(isAppResumedProvider);
-      if (isResumed && activeConversation == conversationId) {
-        debugPrint(
-          '[BackgroundSync] Suppressing notification: user actively viewing conv $conversationId',
-        );
-        return;
-      }
+    // STRICT REQUIREMENT: Web app NEVER receives or displays notifications.
+    if (kIsWeb) return;
+
+    // Check if user is currently looking at this conversation in the FOREGROUND on mobile
+    final isResumed = _ref.read(isAppResumedProvider);
+    if (isResumed && activeConversation == conversationId) {
+      debugPrint(
+        '[BackgroundSync] Suppressing notification: user actively viewing conv $conversationId',
+      );
+      return;
     }
 
     final settings = _ref.read(notificationSettingsProvider);

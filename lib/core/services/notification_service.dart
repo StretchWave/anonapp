@@ -6,9 +6,9 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:go_router/go_router.dart';
 
 import '../routing/app_router.dart';
-import 'web_notification/web_notification.dart' as web_notif;
 
-/// Service managing system notifications on Android, iOS, and Web.
+/// Service managing system notifications on Android and iOS.
+/// Completely disabled on the Web platform.
 class NotificationService {
   NotificationService._();
   static final NotificationService instance = NotificationService._();
@@ -24,12 +24,9 @@ class NotificationService {
       'High-priority sound and vibration notifications for incoming anonymous messages';
 
   /// Initialize local notification plugins and channel for Android and iOS.
+  /// Strictly no-op on Web.
   Future<void> initialize() async {
-    if (_initialized) return;
-    if (kIsWeb) {
-      _initialized = true;
-      return;
-    }
+    if (kIsWeb || _initialized) return;
 
     const androidSettings = AndroidInitializationSettings(
       '@mipmap/ic_launcher',
@@ -119,12 +116,10 @@ class NotificationService {
     _conversationMessageIds.remove(conversationId);
   }
 
-  /// Request system notification permissions on Android (13+), iOS, and Web.
+  /// Request system notification permissions on Android (13+) and iOS.
   /// Returns true if granted or on unsupported platforms, false if explicitly denied.
   Future<bool> requestPermissions() async {
-    if (kIsWeb) {
-      return web_notif.requestWebNotificationPermission();
-    }
+    if (kIsWeb) return false;
 
     if (defaultTargetPlatform == TargetPlatform.android) {
       final androidImplementation = _notificationsPlugin
@@ -168,6 +163,7 @@ class NotificationService {
   }
 
   /// Display a stacked local notification for an incoming message under its conversation/sender.
+  /// Strictly no-ops on Web.
   Future<void> showMessageNotification({
     int? id,
     required String title,
@@ -177,19 +173,7 @@ class NotificationService {
     String? messageId,
     bool isDiscreet = false,
   }) async {
-    if (kIsWeb) {
-      web_notif.showWebNotification(
-        title: isDiscreet ? 'AnonApp' : title,
-        body: isDiscreet ? 'New message received' : body,
-        tag: conversationId != null ? 'anonapp_conv_$conversationId' : null,
-        onClick: () {
-          if (conversationId != null) {
-            rootNavigatorKey.currentContext?.go('/chat/$conversationId');
-          }
-        },
-      );
-      return;
-    }
+    if (kIsWeb) return;
 
     if (!_initialized) {
       await initialize();

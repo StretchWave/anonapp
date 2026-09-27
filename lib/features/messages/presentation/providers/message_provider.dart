@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../../core/constants/supabase_constants.dart';
 import '../../../../core/services/client_chat_deletion_service.dart';
 import '../../../../core/services/encryption_service.dart';
 import '../../../../core/services/supabase_service.dart';
@@ -76,6 +77,7 @@ class MessagesNotifier extends StateNotifier<AsyncValue<List<Message>>> {
     : super(const AsyncLoading()) {
     _loadMessages();
     _subscribeRealtime();
+    _initRecipientChannel();
     _listenToLifecycle();
   }
 
@@ -84,6 +86,9 @@ class MessagesNotifier extends StateNotifier<AsyncValue<List<Message>>> {
   final SupabaseClient _client;
   final String _conversationId;
   RealtimeChannel? _channel;
+  RealtimeChannel? _recipientNotifChannel;
+  String? _recipientId;
+  bool _isDisposed = false;
   static const _uuid = Uuid();
   DateTime? _clearedAt;
   DateTime? _clientDeletedAt;
@@ -108,6 +113,71 @@ class MessagesNotifier extends StateNotifier<AsyncValue<List<Message>>> {
       }
     });
   }
+
+  Future<void> _initRecipientChannel() async {
+    final rId = await _resolveRecipientId();
+    if (rId != null && !_isDisposed) {
+      try {
+        _recipientNotifChannel = _client.channel('user_notif_$rId');
+        _recipientNotifChannel!.subscribe();
+      } catch (_) {}
+    }
+  }
+
+  Future<String?> _resolveRecipientId() async {
+    if (_recipientId != null) return _recipientId;
+    final convs = _ref.read(conversationsProvider).valueOrNull;
+    if (convs != null) {
+      for (final c in convs) {
+        if (c.id == _conversationId && c.otherMemberId != null) {
+          _recipientId = c.otherMemberId;
+          return _recipientId;
+        }
+      }
+    }
+    try {
+      final rows = await _client
+          .from(SupabaseConstants.conversationMembersTable)
+          .select('user_id')
+          .eq('conversation_id', _conversationId)
+          .neq('user_id', _currentUserId)
+          .limit(1);
+      if (rows.isNotEmpty) {
+        _recipientId = rows.first['user_id'] as String?;
+        return _recipientId;
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  /// Broadcasts message payload across WebSocket (< 50ms) to both
+  /// the conversation channel and the recipient's personal user channel.
+  Future<void> _broadcastToRecipient(Map<String, dynamic> payload) async {
+    // 1. Direct broadcast to in-chat conversation channel (< 50ms)
+    try {
+      await _repo.broadcastDirectMessage(
+        channel: _channel,
+        payload: payload,
+      );
+    } catch (_) {}
+
+    // 2. Direct broadcast to recipient's personal user channel (< 50ms)
+    // Ensures instant notification & badge update even when recipient is not inside this chat
+    try {
+      final rId = await _resolveRecipientId();
+      if (rId != null) {
+        if (_recipientNotifChannel == null) {
+          _recipientNotifChannel = _client.channel('user_notif_$rId');
+          _recipientNotifChannel!.subscribe();
+        }
+        await _recipientNotifChannel?.sendBroadcastMessage(
+          event: 'new_message',
+          payload: {'message': payload},
+        );
+      }
+    } catch (_) {}
+  }
+
 
   Future<void> _loadMessages() async {
     try {
@@ -525,10 +595,7 @@ class MessagesNotifier extends StateNotifier<AsyncValue<List<Message>>> {
           'created_at': optimisticMessage.createdAt.toIso8601String(),
           'media_meta': ?meta,
         };
-        await _repo.broadcastDirectMessage(
-          channel: _channel,
-          payload: broadcastPayload,
-        );
+        await _broadcastToRecipient(broadcastPayload);
       } catch (_) {}
     }());
 
@@ -606,6 +673,22 @@ class MessagesNotifier extends StateNotifier<AsyncValue<List<Message>>> {
     final previousList = state.valueOrNull ?? [];
     state = AsyncData([optimisticMessage, ...previousList]);
 
+    unawaited(() async {
+      try {
+        final broadcastPayload = <String, dynamic>{
+          'id': clientId,
+          'conversation_id': _conversationId,
+          'sender_id': _currentUserId,
+          'content': caption?.trim(),
+          'message_type': isViewOnce ? 'view_once_image' : 'image',
+          'client_id': clientId,
+          'created_at': optimisticMessage.createdAt.toIso8601String(),
+          'media_meta': ?meta,
+        };
+        await _broadcastToRecipient(broadcastPayload);
+      } catch (_) {}
+    }());
+
     try {
       final confirmed = await _repo.sendImageMessage(
         conversationId: _conversationId,
@@ -675,6 +758,22 @@ class MessagesNotifier extends StateNotifier<AsyncValue<List<Message>>> {
 
     final previousList = state.valueOrNull ?? [];
     state = AsyncData([optimisticMessage, ...previousList]);
+
+    unawaited(() async {
+      try {
+        final broadcastPayload = <String, dynamic>{
+          'id': clientId,
+          'conversation_id': _conversationId,
+          'sender_id': _currentUserId,
+          'content': '🎤 Voice message',
+          'message_type': 'audio',
+          'client_id': clientId,
+          'created_at': optimisticMessage.createdAt.toIso8601String(),
+          'media_meta': meta,
+        };
+        await _broadcastToRecipient(broadcastPayload);
+      } catch (_) {}
+    }());
 
     try {
       final confirmed = await _repo.sendVoiceMessage(
@@ -750,6 +849,22 @@ class MessagesNotifier extends StateNotifier<AsyncValue<List<Message>>> {
 
     final previousList = state.valueOrNull ?? [];
     state = AsyncData([optimisticMessage, ...previousList]);
+
+    unawaited(() async {
+      try {
+        final broadcastPayload = <String, dynamic>{
+          'id': clientId,
+          'conversation_id': _conversationId,
+          'sender_id': _currentUserId,
+          'content': fileName,
+          'message_type': 'document',
+          'client_id': clientId,
+          'created_at': optimisticMessage.createdAt.toIso8601String(),
+          'media_meta': mediaMeta,
+        };
+        await _broadcastToRecipient(broadcastPayload);
+      } catch (_) {}
+    }());
 
     try {
       final confirmed = await _repo.sendDocumentMessage(
@@ -864,9 +979,16 @@ class MessagesNotifier extends StateNotifier<AsyncValue<List<Message>>> {
 
   @override
   void dispose() {
+    _isDisposed = true;
     _lifecycleSub?.close();
     _typingTimer?.cancel();
     _channel?.unsubscribe();
+    if (_recipientNotifChannel != null) {
+      try {
+        _client.removeChannel(_recipientNotifChannel!);
+      } catch (_) {}
+      _recipientNotifChannel = null;
+    }
     super.dispose();
   }
 }

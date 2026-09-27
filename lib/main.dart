@@ -19,8 +19,6 @@ Future<void> main() async {
     AppForegroundService.instance.initialize();
     await NotificationService.instance.initialize();
     await PushNotificationService.instance.initialize();
-  } else {
-    await NotificationService.instance.initialize();
   }
 
   runApp(const ProviderScope(child: AnonApp()));
