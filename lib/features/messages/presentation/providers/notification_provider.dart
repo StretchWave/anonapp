@@ -250,8 +250,7 @@ class BackgroundSyncManager with WidgetsBindingObserver {
         _isChannelSubscribed = true;
         _channelReconnectTimer?.cancel();
         _channelReconnectTimer = null;
-      } else if (status == RealtimeSubscribeStatus.channelError ||
-          status == RealtimeSubscribeStatus.timedOut) {
+      } else {
         _isChannelSubscribed = false;
         _scheduleChannelReconnect();
       }
@@ -262,14 +261,14 @@ class BackgroundSyncManager with WidgetsBindingObserver {
 
   void _scheduleChannelReconnect() {
     if (_isDisposed || (_channelReconnectTimer?.isActive ?? false)) return;
-    _channelReconnectTimer = Timer(const Duration(seconds: 4), () async {
+    _channelReconnectTimer = Timer(const Duration(seconds: 2), () async {
       _channelReconnectTimer = null;
       if (_isDisposed || _client.auth.currentUser == null) return;
       if (_isChannelSubscribed) {
         return;
       }
       debugPrint(
-        '[NotificationListener] Re-establishing notification channel after error/timeout...',
+        '[NotificationListener] Re-establishing notification channel after status change...',
       );
       _setupNotificationChannel();
     });
@@ -384,6 +383,12 @@ class BackgroundSyncManager with WidgetsBindingObserver {
     _keepAliveTimer = Timer.periodic(
       const Duration(milliseconds: 1500),
       (_) async {
+        if (!_isChannelSubscribed &&
+            !_isDisposed &&
+            _client.auth.currentUser != null &&
+            (_channelReconnectTimer == null || !_channelReconnectTimer!.isActive)) {
+          _setupNotificationChannel();
+        }
         await _checkUnreadMessages();
         if (!kIsWeb) {
           AppForegroundService.instance.pingBackground();
@@ -420,7 +425,8 @@ class BackgroundSyncManager with WidgetsBindingObserver {
           .filter('read_at', 'is', null)
           .gt('created_at', windowStart)
           .order('created_at', ascending: true)
-          .limit(20);
+          .limit(20)
+          .timeout(const Duration(seconds: 4));
 
       for (final row in rows) {
         final id = row['id'] as String?;
