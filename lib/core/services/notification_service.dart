@@ -60,6 +60,7 @@ class NotificationService {
         await androidImplementation.deleteNotificationChannel(channelId: 'anonapp_messages');
         await androidImplementation.deleteNotificationChannel(channelId: 'anonapp_messages_v2');
         await androidImplementation.deleteNotificationChannel(channelId: 'anonapp_messages_v4');
+        await androidImplementation.deleteNotificationChannel(channelId: 'anonapp_bg_service');
       } catch (_) {}
 
       await androidImplementation.createNotificationChannel(

@@ -230,12 +230,12 @@ class AppForegroundService {
     FlutterForegroundTask.initCommunicationPort();
     FlutterForegroundTask.init(
       androidNotificationOptions: AndroidNotificationOptions(
-        channelId: 'anonapp_bg_service',
+        channelId: 'anonapp_bg_service_v2',
         channelName: 'AnonApp Background Service',
         channelDescription:
             'Maintains live connection for incoming message notifications',
-        channelImportance: NotificationChannelImportance.LOW,
-        priority: NotificationPriority.LOW,
+        channelImportance: NotificationChannelImportance.MIN,
+        priority: NotificationPriority.MIN,
         enableVibration: false,
         playSound: false,
         showWhen: false,
@@ -287,7 +287,7 @@ class AppForegroundService {
             ForegroundServiceTypes.remoteMessaging,
           ],
           notificationTitle: 'AnonApp',
-          notificationText: 'Encrypted chat active',
+          notificationText: 'Running',
           callback: startForegroundTaskCallback,
         );
         debugPrint('[ForegroundService] Foreground service started successfully');
