@@ -7,7 +7,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/constants/supabase_constants.dart';
-import '../../../../core/env/env.dart';
 import '../../../../core/services/encryption_service.dart';
 import '../../../../core/services/foreground_service.dart';
 import '../../../../core/services/notification_service.dart';
@@ -89,14 +88,7 @@ class NotificationSettingsNotifier extends StateNotifier<NotificationSettings> {
       );
 
       if (enabled) {
-        final session = client.auth.currentSession;
-        await AppForegroundService.instance.start(
-          userId: currentUserId,
-          supabaseUrl: Env.supabaseUrl,
-          supabaseAnonKey: Env.supabaseAnonKey,
-          authToken: session?.accessToken,
-        );
-        await AppForegroundService.instance.requestBatteryExemption();
+        await AppForegroundService.instance.stop();
       }
     }
     _ref.invalidate(pushNotificationStatusProvider);
@@ -174,16 +166,6 @@ class BackgroundSyncManager with WidgetsBindingObserver {
     });
 
     _syncCurrentDevice();
-    _startForegroundServiceIfAllowed();
-    AppForegroundService.instance.addTaskDataCallback(
-      _onReceiveForegroundTaskData,
-    );
-    _authSub = _client.auth.onAuthStateChange.listen((data) {
-      final token = data.session?.accessToken;
-      if (token != null) {
-        unawaited(AppForegroundService.instance.updateAuthToken(token));
-      }
-    });
     _startKeepAliveLoop();
     unawaited(_checkUnreadMessages());
   }
@@ -345,30 +327,6 @@ class BackgroundSyncManager with WidgetsBindingObserver {
     }
   }
 
-  void _startForegroundServiceIfAllowed() {
-    if (kIsWeb) return;
-    final userId = _client.auth.currentUser?.id;
-    if (userId == null) return;
-
-    final settings = _ref.read(notificationSettingsProvider);
-    if (!settings.enabled) return;
-
-    final session = _client.auth.currentSession;
-    if (session?.accessToken != null) {
-      unawaited(
-        AppForegroundService.instance.updateAuthToken(session!.accessToken),
-      );
-    }
-    unawaited(
-      AppForegroundService.instance.start(
-        userId: userId,
-        supabaseUrl: Env.supabaseUrl,
-        supabaseAnonKey: Env.supabaseAnonKey,
-        authToken: session?.accessToken,
-      ),
-    );
-    unawaited(AppForegroundService.instance.requestBatteryExemption());
-  }
 
   void _syncCurrentDevice() {
     final userId = _client.auth.currentUser?.id;
@@ -397,8 +355,7 @@ class BackgroundSyncManager with WidgetsBindingObserver {
       // Clear active conversation ID so background messages trigger notifications properly
       _ref.read(activeConversationIdProvider.notifier).state = null;
     } else {
-      // Returned to foreground: ensure service is alive, channel is active, re-check status and perform chat UI reconciliation
-      _startForegroundServiceIfAllowed();
+      // Returned to foreground: ensure channel is active, re-check status and perform chat UI reconciliation
       if (_notificationChannel == null) {
         _setupNotificationChannel();
       }

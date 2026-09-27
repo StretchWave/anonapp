@@ -229,41 +229,18 @@ class AppForegroundService {
 
   bool _initialized = false;
 
-  /// Initializes the foreground task port and options.
+  /// Initializes the service and ensures no persistent foreground notification is displayed.
   void initialize() {
     if (kIsWeb || _initialized) return;
 
-    FlutterForegroundTask.initCommunicationPort();
-    FlutterForegroundTask.init(
-      androidNotificationOptions: AndroidNotificationOptions(
-        channelId: 'anonapp_bg_service_v4',
-        channelName: 'AnonApp Background Service',
-        channelDescription:
-            'Maintains live connection for incoming message notifications',
-        channelImportance: NotificationChannelImportance.MIN,
-        priority: NotificationPriority.MIN,
-        enableVibration: false,
-        playSound: false,
-        showWhen: false,
-        visibility: NotificationVisibility.VISIBILITY_SECRET,
-      ),
-      iosNotificationOptions: const IOSNotificationOptions(
-        showNotification: false,
-        playSound: false,
-      ),
-      foregroundTaskOptions: ForegroundTaskOptions(
-        eventAction: ForegroundTaskEventAction.repeat(2000),
-        autoRunOnBoot: true,
-        autoRunOnMyPackageReplaced: true,
-        allowWakeLock: true,
-        allowWifiLock: true,
-      ),
-    );
+    try {
+      FlutterForegroundTask.stopService();
+    } catch (_) {}
 
     _initialized = true;
   }
 
-  /// Starts the foreground service if not already running.
+  /// Strictly no-op: prevents Android from displaying the persistent 'Listening for messages' notification.
   Future<void> start({
     required String userId,
     required String supabaseUrl,
@@ -272,43 +249,12 @@ class AppForegroundService {
   }) async {
     if (kIsWeb) return;
 
-    if (!_initialized) {
-      initialize();
-    }
-
-    await FlutterForegroundTask.saveData(key: 'user_id', value: userId);
-    await FlutterForegroundTask.saveData(
-      key: 'supabase_url',
-      value: supabaseUrl,
-    );
-    await FlutterForegroundTask.saveData(
-      key: 'supabase_anon_key',
-      value: supabaseAnonKey,
-    );
-    if (authToken != null) {
-      await FlutterForegroundTask.saveData(key: 'auth_token', value: authToken);
-    }
-
     try {
       final isRunning = await FlutterForegroundTask.isRunningService;
-      if (!isRunning) {
-        await FlutterForegroundTask.startService(
-          serviceId: 256,
-          serviceTypes: [
-            ForegroundServiceTypes.dataSync,
-            ForegroundServiceTypes.remoteMessaging,
-          ],
-          notificationTitle: 'AnonApp',
-          notificationText: 'Listening for messages',
-          callback: startForegroundTaskCallback,
-        );
-        debugPrint(
-          '[ForegroundService] Foreground service started successfully',
-        );
+      if (isRunning) {
+        await FlutterForegroundTask.stopService();
       }
-    } catch (e) {
-      debugPrint('[ForegroundService] Start service error: $e');
-    }
+    } catch (_) {}
   }
 
   /// Updates the cached auth token in the foreground task prefs so background polling doesn't 401 when token refreshes.
