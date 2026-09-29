@@ -146,6 +146,7 @@ BEGIN
       'id', NEW.id,
       'conversation_id', NEW.conversation_id,
       'sender_id', NEW.sender_id,
+      'content', NEW.content,
       'message_type', NEW.message_type,
       'created_at', NEW.created_at,
       'expires_at', NEW.expires_at,
