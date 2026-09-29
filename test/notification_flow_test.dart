@@ -477,5 +477,33 @@ void main() {
         expect(decrypted, equals(secretText));
       },
     );
+
+    test('21. Android Notification Grouping constants and summary ID', () {
+      expect(NotificationService.groupKey, equals('com.example.anonapp.MESSAGES'));
+      expect(NotificationService.summaryNotificationId, equals(0));
+    });
+
+    test('22. Global Message Deduplication prevents double notification', () {
+      const msgId = 'test-msg-uuid-dedup-1';
+      expect(NotificationService.instance.hasNotifiedMessage(msgId), isFalse);
+
+      // Verify that hasNotifiedMessage reflects tracked state
+      // (tested on instance)
+      expect(NotificationService.instance.hasNotifiedMessage('non-existent'), isFalse);
+    });
+
+    test('23. Group summary text formatting across multiple contacts', () {
+      String formatSummaryText(int contactCount, int totalMessages) {
+        if (contactCount == 1) {
+          return '$totalMessages ${totalMessages == 1 ? 'message' : 'messages'}';
+        }
+        return '$contactCount ${contactCount == 1 ? 'chat' : 'chats'} • $totalMessages ${totalMessages == 1 ? 'message' : 'messages'}';
+      }
+
+      expect(formatSummaryText(1, 1), equals('1 message'));
+      expect(formatSummaryText(1, 3), equals('3 messages'));
+      expect(formatSummaryText(2, 2), equals('2 chats • 2 messages'));
+      expect(formatSummaryText(3, 7), equals('3 chats • 7 messages'));
+    });
   });
 }

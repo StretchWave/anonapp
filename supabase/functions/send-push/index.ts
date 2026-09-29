@@ -336,38 +336,32 @@ Deno.serve(async (req: Request) => {
       continue;
     }
 
-    // Determine title & body based on user's discreet setting
     const isDiscreet = Boolean(device.discreet);
-    const notifTitle = isDiscreet
-      ? "AnonApp"
-      : senderUsername
-      ? `@${senderUsername}`
-      : "AnonApp";
-    const notifBody = isDiscreet ? "New message received" : previewBody;
 
-    // Construct FCM v1 payload: Notification + Data (Strictly generic; NO plaintext or ciphertext!)
+    // High-priority DATA-ONLY payload.
+    // By excluding the top-level 'notification' block, Android OS (Google Play Services)
+    // will NEVER auto-display an un-decrypted generic notification ("New message received").
+    // Instead, Android wakes up the app's background/foreground handler, which decrypts
+    // the content and displays exactly ONE clean, rich, grouped notification.
+    const safeContent =
+      record.content && typeof record.content === "string" && record.content.length <= 3500
+        ? record.content
+        : "";
+
     const fcmPayload = {
       message: {
         token: device.fcm_token,
-        notification: {
-          title: notifTitle,
-          body: notifBody,
-        },
         data: {
-          message_id: record.id,
-          conversation_id: record.conversation_id,
-          sender_id: record.sender_id,
-          msg_type: record.message_type || "text",
-          sender_username: senderUsername || "",
+          message_id: String(record.id),
+          conversation_id: String(record.conversation_id),
+          sender_id: String(record.sender_id),
+          msg_type: String(record.message_type || "text"),
+          sender_username: String(senderUsername || ""),
+          content: safeContent,
+          discreet: isDiscreet ? "true" : "false",
         },
         android: {
           priority: "HIGH",
-          notification: {
-            channel_id: "anonapp_messages_v5",
-            icon: "ic_stat_notification",
-            click_action: "FLUTTER_NOTIFICATION_CLICK",
-            tag: `anonapp_conv_${record.conversation_id}`,
-          },
         },
       },
     };

@@ -9,21 +9,87 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 
+import 'package:flutter/widgets.dart';
 import '../../firebase_options.dart';
 import '../constants/supabase_constants.dart';
 import '../routing/app_router.dart';
+import 'encryption_service.dart';
 import 'notification_service.dart';
 
 /// Top-level background message handler required by FCM.
 /// Must be annotated with @pragma('vm:entry-point').
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  // In background or terminated state, Android system tray places the notification
-  // directly from the FCM notification payload. We strictly DO NOT create a second
-  // duplicate local notification here.
+  WidgetsFlutterBinding.ensureInitialized();
   debugPrint(
     '[FCM] Background message received: ${message.messageId} '
     '(conv: ${message.data['conversation_id']})',
+  );
+
+  final data = message.data;
+  final conversationId = data['conversation_id'] as String?;
+  if (conversationId == null || conversationId.isEmpty) return;
+
+  final messageId = data['message_id'] as String? ?? message.messageId;
+
+  // Suppress if already notified
+  if (messageId != null &&
+      NotificationService.instance.hasNotifiedMessage(messageId)) {
+    debugPrint(
+      '[FCM] Background notification skipped: Message $messageId already notified',
+    );
+    return;
+  }
+
+  final senderUsername = data['sender_username'] as String? ?? 'Anonymous';
+  final msgType = data['msg_type'] as String? ?? 'text';
+  final rawContent = data['content'] as String? ?? '';
+  final isDiscreet = data['discreet'] == 'true';
+
+  String title;
+  String body;
+
+  if (isDiscreet) {
+    title = 'AnonApp';
+    body = 'New message received';
+  } else {
+    title = '@$senderUsername';
+    switch (msgType) {
+      case 'image':
+        body = '📷 Photo';
+        break;
+      case 'view_once_image':
+        body = '🔒 Photo (View once)';
+        break;
+      case 'audio':
+        body = '🎤 Voice message';
+        break;
+      case 'document':
+        body = '📄 Document';
+        break;
+      default:
+        if (EncryptionService.isEncrypted(rawContent)) {
+          body = await EncryptionService.instance.decryptText(
+            rawContent,
+            conversationId,
+          );
+        } else if (rawContent.isNotEmpty) {
+          body = rawContent;
+        } else {
+          body = 'New message received';
+        }
+        break;
+    }
+  }
+
+  await NotificationService.instance.showMessageNotification(
+    id: NotificationService.conversationNotificationId(conversationId),
+    title: title,
+    body: body,
+    conversationId: conversationId,
+    senderUsername: senderUsername,
+    messageId: messageId,
+    isDiscreet: isDiscreet,
   );
 }
 
@@ -301,7 +367,7 @@ class PushNotificationService {
   }
 
   /// Handles incoming FCM messages while the app is in the FOREGROUND.
-  void _handleForegroundMessage(RemoteMessage message) {
+  void _handleForegroundMessage(RemoteMessage message) async {
     debugPrint(
       '[FCM] Foreground message received: ${message.messageId} '
       '(conv: ${message.data['conversation_id']})',
@@ -320,20 +386,67 @@ class PushNotificationService {
       return;
     }
 
-    // 2. Otherwise create a local notification for the user
-    final title = message.notification?.title ?? 'AnonApp';
-    final body = message.notification?.body ?? 'New message received';
-    final senderUsername = data['sender_username'] as String?;
+    final messageId = data['message_id'] as String? ?? message.messageId;
 
-    unawaited(
-      NotificationService.instance.showMessageNotification(
-        id: NotificationService.conversationNotificationId(conversationId),
-        title: title,
-        body: body,
-        conversationId: conversationId,
-        senderUsername: senderUsername,
-        messageId: (data['message_id'] as String?) ?? message.messageId,
-      ),
+    // 2. Suppress if NotificationService has already notified for this message (e.g. via realtime websocket)
+    if (messageId != null &&
+        NotificationService.instance.hasNotifiedMessage(messageId)) {
+      debugPrint(
+        '[Push] Notification suppressed: Message $messageId already notified',
+      );
+      return;
+    }
+
+    // 3. Otherwise decrypt and display the single notification
+    final senderUsername = data['sender_username'] as String? ?? 'Anonymous';
+    final msgType = data['msg_type'] as String? ?? 'text';
+    final rawContent = data['content'] as String? ?? '';
+    final isDiscreet = data['discreet'] == 'true';
+
+    String title;
+    String body;
+
+    if (isDiscreet) {
+      title = 'AnonApp';
+      body = 'New message received';
+    } else {
+      title = '@$senderUsername';
+      switch (msgType) {
+        case 'image':
+          body = '📷 Photo';
+          break;
+        case 'view_once_image':
+          body = '🔒 Photo (View once)';
+          break;
+        case 'audio':
+          body = '🎤 Voice message';
+          break;
+        case 'document':
+          body = '📄 Document';
+          break;
+        default:
+          if (EncryptionService.isEncrypted(rawContent)) {
+            body = await EncryptionService.instance.decryptText(
+              rawContent,
+              conversationId,
+            );
+          } else if (rawContent.isNotEmpty) {
+            body = rawContent;
+          } else {
+            body = 'New message received';
+          }
+          break;
+      }
+    }
+
+    await NotificationService.instance.showMessageNotification(
+      id: NotificationService.conversationNotificationId(conversationId),
+      title: title,
+      body: body,
+      conversationId: conversationId,
+      senderUsername: senderUsername,
+      messageId: messageId,
+      isDiscreet: isDiscreet,
     );
   }
 
