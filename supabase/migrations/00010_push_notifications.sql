@@ -155,20 +155,15 @@ BEGIN
 
   -- Safe execution if pg_net extension exists
   IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_net') THEN
-    SELECT current_setting('app.settings.supabase_url', true) INTO v_supabase_url;
-    SELECT current_setting('app.settings.service_role_key', true) INTO v_anon_key;
-
-    IF v_supabase_url IS NOT NULL AND v_anon_key IS NOT NULL THEN
-      PERFORM net.http_post(
-        url := v_supabase_url || '/functions/v1/send-push',
-        headers := jsonb_build_object(
-          'Content-Type', 'application/json',
-          'Authorization', 'Bearer ' || v_anon_key
-        ),
-        body := v_payload,
-        timeout_milliseconds := 5000
-      );
-    END IF;
+    PERFORM net.http_post(
+      url := 'https://oydrnjrtmaqvpylqrkfp.supabase.co/functions/v1/send-push',
+      headers := jsonb_build_object(
+        'Content-Type', 'application/json',
+        'Authorization', 'Bearer sb_publishable_XvPGW6LkudxG1yULncAt4Q_z8ZJDqQx'
+      ),
+      body := v_payload,
+      timeout_milliseconds := 5000
+    );
   END IF;
 
   RETURN NEW;

@@ -357,13 +357,13 @@ Deno.serve(async (req: Request) => {
           message_id: record.id,
           conversation_id: record.conversation_id,
           sender_id: record.sender_id,
-          message_type: record.message_type || "text",
+          msg_type: record.message_type || "text",
           sender_username: senderUsername || "",
         },
         android: {
           priority: "HIGH",
           notification: {
-            channel_id: "anonapp_messages",
+            channel_id: "anonapp_messages_v5",
             icon: "ic_stat_notification",
             click_action: "FLUTTER_NOTIFICATION_CLICK",
             tag: `anonapp_conv_${record.conversation_id}`,
